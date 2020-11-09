@@ -50,7 +50,7 @@ server <- function(input, output) {
         temp <- feasMax[wna, on = "BGC"]
         temp[tempCols, BGC_Col := i.Col, on = "BGC"]
         if(input$type == "P/A"){
-            temp[,Col := fifelse(is.na(SuitMax),BGC_Col,"#19CD21FF")]
+            temp[,Col := ifelse(is.na(SuitMax),BGC_Col,"#19CD21FF")]
         }else{
             temp[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
             temp[is.na(Col), Col := BGC_Col]
@@ -64,7 +64,7 @@ server <- function(input, output) {
         temp <- feasMax[wna_zone, on = "BGC"]
         temp[tempCols, BGC_Col := i.Col, on = "BGC"]
         if(input$type == "P/A"){
-            temp[,Col := fifelse(is.na(SuitMax),BGC_Col,"#19CD21FF")]
+            temp[,Col := ifelse(is.na(SuitMax),BGC_Col,"#19CD21FF")]
         }else{
             temp[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
             temp[is.na(Col), Col := BGC_Col]
