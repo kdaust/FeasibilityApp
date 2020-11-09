@@ -17,7 +17,7 @@ wna <- as.data.table(wna)
 feas <- fread("Feasibility_v11_21.csv")
 feas <- feas[,.(BGC,SS_NoSpace,Spp,Feasible)]
 spp.choose <- sort(unique(feas$Spp))
-suitcols <- data.table(Suit = c(1,2,3),Col = c("#42CF20FF","#ECCD22FF","#EC0E0EFF"))
+suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3d","#736e6e","#a29f9e"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
 renderedTiles <- vector("numeric")
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
 
@@ -50,7 +50,7 @@ server <- function(input, output) {
         temp <- feasMax[wna, on = "BGC"]
         temp[tempCols, BGC_Col := i.Col, on = "BGC"]
         if(input$type == "P/A"){
-            temp[,Col := fifelse(is.na(SuitMax),BGC_Col,"#19CD21FF")]
+            temp[,Col := fifelse(is.na(SuitMax),BGC_Col,"#443e3d")]##19CD21FF"
         }else{
             temp[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
             temp[is.na(Col), Col := BGC_Col]
@@ -64,7 +64,7 @@ server <- function(input, output) {
         temp <- feasMax[wna_zone, on = "BGC"]
         temp[tempCols, BGC_Col := i.Col, on = "BGC"]
         if(input$type == "P/A"){
-            temp[,Col := fifelse(is.na(SuitMax),BGC_Col,"#19CD21FF")]
+            temp[,Col := fifelse(is.na(SuitMax),BGC_Col,"#443e3d")]##19CD21FF"
         }else{
             temp[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
             temp[is.na(Col), Col := BGC_Col]
