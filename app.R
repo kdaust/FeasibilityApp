@@ -3,83 +3,186 @@ library(mapdeck)
 library(sf)
 library(data.table)
 library(shinyWidgets)
+library(shinycssloaders)
+library(ggplot2)
+
+##data for edatopic grid
+grd1x <- seq(1.5,4.5,1)
+grd1y <- seq(1.5,7.5,1)
+rects <- data.table(xmin = rep(c(0.5,3.5), each = 5),
+                    xmax = rep(c(3.5,5.5), each = 5),
+                    ymin = rep(c(0.5,1.5,3.5,5.5,7.5),2),
+                    ymax = rep(c(1.5,3.5,5.5,7.5,8.5),2))
+ids <- 1:10
+labs <- c("SHD-P","SAG/HG-P","Sm/m-P","Sx/x-P","Vx-P","SHD-R","SAG/HG-R","Sm/m-R","Sx/x-R","Vx-R")
+idDat <- expand.grid(SMR = 0:7, SNR = c("A","B","C","D","E"))
+idDat <- as.data.table(idDat)
+setorder(idDat,SMR,SNR)
+idDat[,ID := c(5,5,5,10,10,4,4,4,9,9,4,4,4,9,9,3,3,3,8,8,3,3,3,8,8,2,2,2,7,7,2,2,2,7,7,1,1,1,6,6)]
+idDat[,Edatopic := paste0(SNR,SMR)]
+cols <- fread("WNAv12_HexColours.csv")
+setnames(cols, c("BGC","Col"))
+alpha <- "4D"
+cols[,Col := paste0(Col,alpha)]
+grRamp <- colorRamp(c("#443e3dFF","#a29f9eFF"),alpha = T) ##colour ramp for gray values
 
 wna_zone <- st_read(dsn = "BC_VSmall.gpkg")
 wna_zone <- st_transform(wna_zone, 4326) %>% st_cast("POLYGON")
 wna_zone <- as.data.table(wna_zone)
-tempCols <- data.table(BGC = unique(wna_zone$BGC))
-tempCols[,Col := rainbow(nrow(tempCols), alpha = 0.2)]
+wna_zone[cols, BGC_Col := i.Col, on = "BGC"]
 wna <- st_read(dsn = "Tiled_WNA.gpkg")
 grd <- st_read(dsn = "WNA_TilesOutlines.gpkg")
 
 wna <- st_transform(wna, 4326) %>% st_cast("POLYGON")
 wna <- as.data.table(wna)
+wna[cols, BGC_Col := i.Col, on = "BGC"]
 feas <- fread("Feasibility_v11_21.csv")
 feas <- feas[,.(BGC,SS_NoSpace,Spp,Feasible)]
+eda <- fread("Edatopic_v11_20.csv")
+eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
 spp.choose <- sort(unique(feas$Spp))
-suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3d","#736e6e","#a29f9e"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
+suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3dFF","#736e6eFF","#a29f9eFF"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
 renderedTiles <- vector("numeric")
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
 
 # Define UI for application that draws a histogram
 ui <- navbarPage("Species Feasibility",
-                 tabPanel("LeafGL",
-                          column(2,
-                                 pickerInput("sppPick",
-                                             label = "Select Tree Species",
-                                             choices = spp.choose,
-                                             selected = "Pl"),
-                                 awesomeRadio("type",
-                                              label = "Select Summary",
-                                              choices = c("P/A","Max Suit"),
-                                              selected =  "P/A")
-                                 ),
-                          column(10,
-                                 h2("Map rendered with mapdeck"),
-                                     mapdeckOutput("map",height = "700px")
-                                 )
+                 tabPanel("BC Map",
+                          fillPage(
+                                  column(3,
+                                         pickerInput("sppPick",
+                                                     label = "Select Tree Species",
+                                                     choices = spp.choose,
+                                                     selected = "Pl"),
+                                         awesomeRadio("type",
+                                                      label = "Select Summary",
+                                                      choices = c("P/A","Max Suit"),
+                                                      selected =  "P/A"),
+                                         h4("Select Edatopic Space: \n"),
+                                         girafeOutput("edaplot"),
+                                         verbatimTextOutput("info")
+                                  ),
+                                  column(9,
+                                         withSpinner(
+                                             mapdeckOutput("map", height = 800),
+                                             type = 6
+                                         )
+                                         
+                                  )
+                              
+                              )
                           )
+                          
                  )
 
 
 server <- function(input, output) {
     
-    prepDat <- reactive({
+    output$map <- renderMapdeck({
+        # dat <- prepZone()
+        mapdeck() %>%
+            mapdeck_view(location = c(-124.72,54.56), zoom = 4)
+    })
+    
+    observeEvent({c(
+        input$sppPick,
+        input$type,
+        input$edaplot_selected)
+    },{
+        dat <- mergeSmallDat()
+        ##browser()
+        mapdeck_update(map_id = "map") %>%
+            #clear_polygon(layer_id = "zone") %>%
+            add_polygon(dat,
+                        layer_id = "zone",
+                        fill_colour = "Col",
+                        tooltip = "Lab",
+                        auto_highlight = F,
+                        focus_layer = F,
+                        update_view = F
+            )
+        
+    }, priority = 5)
+    
+    observeEvent({input$sppPick 
+        input$type},{
+            mapdeck_update(map_id = "map") %>%
+                clear_polygon(layer_id = "polys")
+        }, priority = 10)
+    
+    observeEvent({
+        c(input$sppPick,
+          input$type,
+          input$map_view_change,
+          input$edaplot_selected)
+    },{
+        dat <- getTiles()
+        if(!is.null(dat)){
+            renderedTiles <- c(renderedTiles, unique(dat$ID))
+            mapdeck_update(map_id = "map") %>%
+                add_polygon(dat,
+                            layer_id = "polys",
+                            fill_colour = "Col",
+                            tooltip = "Lab",
+                            auto_highlight = F,
+                            focus_layer = F,
+                            update_view = F
+                )
+        }
+        
+    }, priority = 2)
+    
+    prepDatSimple <- reactive({
         feasMax <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),
                         .(SuitMax = min(Feasible)), by = BGC]
-        temp <- feasMax[wna, on = "BGC"]
-        temp[tempCols, BGC_Col := i.Col, on = "BGC"]
         if(input$type == "P/A"){
-
-            temp[,Col := fifelse(is.na(SuitMax),BGC_Col,"#443e3d")]##19CD21FF"
-
+            feasMax[,Col := "#443e3dFF"]
         }else{
-            temp[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
-            temp[is.na(Col), Col := BGC_Col]
+            feasMax[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
         }
+        feasMax[,Lab := BGC]
+        feasMax[,.(BGC,Col,Lab)]
+    })
+    
+    prepEdaDat <- reactive({
+        id <- as.numeric(input$edaplot_selected)
+        idSub <- idDat[ID == id,.(ID,Edatopic)]
+        edaSub <- eda[idSub, on = "Edatopic"]
+        feasSub <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),]
+        feasSub <- feasSub[SS_NoSpace %chin% edaSub$SS_NoSpace,]
+        feasSub[,Lab := paste0(SS_NoSpace,": ", Feasible)]
+        feasSum <- feasSub[,.(FeasVal = mean(Feasible), Lab = paste(Lab, collapse = "<br>")), by = BGC]
+        tempCol <- grRamp(feasSum$FeasVal/3)
+        feasSum[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
+        feasSum[,.(BGC,Col,Lab)]
+    })
+    
+    mergeBigDat <- reactive({
+        if(is.null(input$edaplot_selected)){
+            feasDat <- prepDatSimple()
+        }else{
+            feasDat <- prepEdaDat()
+        }
+        temp <- feasDat[wna, on = "BGC"]
+        temp[is.na(Col), Col := BGC_Col]
         st_as_sf(temp)
     })
     
-    prepZone <- reactive({
-        feasMax <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),
-                        .(SuitMax = min(Feasible)), by = BGC]
-        temp <- feasMax[wna_zone, on = "BGC"]
-        temp[tempCols, BGC_Col := i.Col, on = "BGC"]
-        if(input$type == "P/A"){
-
-            temp[,Col := fifelse(is.na(SuitMax),BGC_Col,"#443e3d")]##19CD21FF"
-
+    mergeSmallDat <- reactive({
+        if(is.null(input$edaplot_selected)){
+            feasDat <- prepDatSimple()
         }else{
-            temp[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
-            temp[is.na(Col), Col := BGC_Col]
+            feasDat <- prepEdaDat()
         }
+        temp <- feasDat[wna_zone, on = "BGC"]
+        temp[is.na(Col), Col := BGC_Col]
         st_as_sf(temp)
     })
     
-    getDat <- reactive({
+    getTiles <- reactive({
         bounds <- input$map_view_change
-        if(bounds$viewBounds$north - bounds$viewBounds$south < 1.2){
-            dat <- prepDat()
+        if(!is.null(bounds) && bounds$viewBounds$north - bounds$viewBounds$south < 1.2){
+            dat <- mergeBigDat()
             bnds <- st_bbox(c(xmin = bounds$viewBounds$west, xmax = bounds$viewBounds$east, 
                               ymax = bounds$viewBounds$north,ymin = bounds$viewBounds$south), crs = st_crs(4326))
             bnds <- st_as_sfc(bnds)
@@ -87,7 +190,7 @@ server <- function(input, output) {
             t1 <- as.data.frame(t1)
             dat <- dat[dat$ID %in% t1$row.id,]
             dat <- dat[!dat$ID %in% renderedTiles,]
-            dat <- dat[!is.na(dat$SuitMax),]
+            dat <- dat[!is.na(dat$Lab),]
             if(nrow(dat) < 1) dat <- NULL
             dat
         }else{
@@ -95,80 +198,57 @@ server <- function(input, output) {
         }
     })
     
-    output$map <- renderMapdeck({
-       # dat <- prepZone()
-        mapdeck() %>%
-            mapdeck_view(location = c(-124.72,54.56), zoom = 4)
+    output$edaplot <- renderGirafe({
+        gg <- ggplot()+
+            geom_blank()+
+            scale_y_discrete(limits = c("7","6","5","4","3","2","1","0"))+
+            scale_x_discrete(limits = c("A","B","C","D","E"))+
+            geom_rect_interactive(data = rects, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, 
+                                                    tooltip = labs, data_id = ids), 
+                                  fill = "grey", col = "purple")+
+            geom_hline(aes(yintercept = grd1y), linetype = "dashed")+
+            geom_vline(aes(xintercept = grd1x), linetype = "dashed")+
+            theme_bw(base_size = 10)+
+            theme(panel.grid.major = element_blank())+
+            labs(x = "SNR", y = "SMR")+
+            coord_fixed()
+        
+        girafe(ggobj = gg,
+               options = list(opts_selection(type = "single")))
     })
     
-    observeEvent({input$sppPick
-        input$type},{
-            dat <- prepZone()
-            mapdeck_update(map_id = "map") %>%
-                #clear_polygon(layer_id = "zone") %>%
-                add_polygon(dat,
-                            layer_id = "zone",
-                            fill_colour = "Col",
-                            tooltip = "BGC",
-                            auto_highlight = F,
-                            focus_layer = F,
-                            update_view = F
-                )
-
-        })
-    
-    observeEvent({input$sppPick 
-        input$type},{
-            mapdeck_update(map_id = "map") %>%
-                clear_polygon(layer_id = "polys")
-        })
-    
-    observeEvent({input$sppPick
-        input$type
-        input$map_view_change},{
-            dat <- getDat()
-            if(!is.null(dat)){
-                renderedTiles <- c(renderedTiles, unique(dat$ID))
-                mapdeck_update(map_id = "map") %>%
-                    add_polygon(dat,
-                                layer_id = "polys",
-                                fill_colour = "Col",
-                                tooltip = "BGC",
-                                auto_highlight = F,
-                                focus_layer = F,
-                                update_view = F
-                    )
-            }
-            
-        })
-    
-    # output$map <- renderLeaflet({
-    #     dat <- st_as_sf(wna)
-    #     
-    #     leaflet(data = dat) %>%
-    #         addPolygons(data = dat,
-    #                     layerId = ~ BGC,
-    #                     label = ~ BGC,
-    #                     weight = 1)
-    # })
-    # 
-    # observeEvent({input$sppPick
-    #     input$type},
-    #     {dat2 <- prepDat()
-    #     leafletProxy("map",data = dat2) %>%
-    #         setShapeStyle(layerId = ~BGC, fillColor = dat2[["Col"]], color = dat2[["Col"]])
-    #     })
-    
-    # ##leaflet glify
-    # output$map2 <- renderLeaflet({
-    #     dat <- prepDat()
-    #     leaflet(data = dat) %>%
-    #         addGlPolygons(data = dat,
-    #                     layerId = ~BGC,
-    #                     color = dat$Col)
-    # })
-
+    output$info <- renderText({
+        paste0("You have selected: ", input$edaplot_selected)#labs[as.numeric(input$edaplot_selected)]
+    })
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
+
+
+
+# output$map <- renderLeaflet({
+#     dat <- st_as_sf(wna)
+#     
+#     leaflet(data = dat) %>%
+#         addPolygons(data = dat,
+#                     layerId = ~ BGC,
+#                     label = ~ BGC,
+#                     weight = 1)
+# })
+# 
+# observeEvent({input$sppPick
+#     input$type},
+#     {dat2 <- prepDat()
+#     leafletProxy("map",data = dat2) %>%
+#         setShapeStyle(layerId = ~BGC, fillColor = dat2[["Col"]], color = dat2[["Col"]])
+#     })
+
+# ##leaflet glify
+# output$map2 <- renderLeaflet({
+#     dat <- prepDat()
+#     leaflet(data = dat) %>%
+#         addGlPolygons(data = dat,
+#                     layerId = ~BGC,
+#                     color = dat$Col)
+# })
