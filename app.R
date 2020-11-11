@@ -5,6 +5,7 @@ library(data.table)
 library(shinyWidgets)
 library(shinycssloaders)
 library(ggplot2)
+library(ggiraph)
 
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
