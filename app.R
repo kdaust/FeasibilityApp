@@ -6,6 +6,8 @@ library(shinyWidgets)
 library(shinycssloaders)
 library(ggplot2)
 library(ggiraph)
+library(scales)
+library(rhandsontable)
 
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
@@ -31,6 +33,7 @@ wna_zone <- st_read(dsn = "BC_VSmall.gpkg")
 wna_zone <- st_transform(wna_zone, 4326) %>% st_cast("POLYGON")
 wna_zone <- as.data.table(wna_zone)
 wna_zone[cols, BGC_Col := i.Col, on = "BGC"]
+wna_small <- st_as_sf(wna_zone)
 wna <- st_read(dsn = "Tiled_WNA.gpkg")
 grd <- st_read(dsn = "WNA_TilesOutlines.gpkg")
 
@@ -60,14 +63,17 @@ ui <- navbarPage("Species Feasibility",
                                                       choices = c("P/A","Max Suit"),
                                                       selected =  "P/A"),
                                          h4("Select Edatopic Space: \n"),
-                                         girafeOutput("edaplot"),
+                                         girafeOutput("edaplot", width = "400px"),
                                          verbatimTextOutput("info")
                                   ),
                                   column(9,
                                          withSpinner(
-                                             mapdeckOutput("map", height = 800),
+                                             mapdeckOutput("map", height = 700),
                                              type = 6
-                                         )
+                                         ),
+                                         h4("Suitability data for selected polygon"),
+                                         br(),
+                                         rHandsontableOutput("hotTab")
                                          
                                   )
                               
@@ -79,10 +85,18 @@ ui <- navbarPage("Species Feasibility",
 
 server <- function(input, output) {
     
+    ##base BGC map
     output$map <- renderMapdeck({
-        # dat <- prepZone()
+        dat <- wna_small
         mapdeck() %>%
-            mapdeck_view(location = c(-124.72,54.56), zoom = 4)
+            mapdeck_view(location = c(-124.72,54.56), zoom = 4) %>%
+            add_polygon(dat,
+                        layer_id = "bgcmap",
+                        fill_colour = "BGC_Col",
+                        tooltip = "BGC",
+                        auto_highlight = F,
+                        focus_layer = F,
+                        update_view = F)
     })
     
     observeEvent({c(
@@ -105,8 +119,10 @@ server <- function(input, output) {
         
     }, priority = 5)
     
-    observeEvent({input$sppPick 
-        input$type},{
+    observeEvent({
+        c(input$sppPick, 
+        input$type,
+        input$edaplot_selected)},{
             mapdeck_update(map_id = "map") %>%
                 clear_polygon(layer_id = "polys")
         }, priority = 10)
@@ -153,7 +169,7 @@ server <- function(input, output) {
         feasSub <- feasSub[SS_NoSpace %chin% edaSub$SS_NoSpace,]
         feasSub[,Lab := paste0(SS_NoSpace,": ", Feasible)]
         feasSum <- feasSub[,.(FeasVal = mean(Feasible), Lab = paste(Lab, collapse = "<br>")), by = BGC]
-        tempCol <- grRamp(feasSum$FeasVal/3)
+        tempCol <- grRamp(rescale(feasSum$FeasVal,to = c(0,1)))
         feasSum[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
         feasSum[,.(BGC,Col,Lab)]
     })
@@ -164,8 +180,8 @@ server <- function(input, output) {
         }else{
             feasDat <- prepEdaDat()
         }
-        temp <- feasDat[wna, on = "BGC"]
-        temp[is.na(Col), Col := BGC_Col]
+        temp <- wna[feasDat, on = "BGC"]
+        temp <- temp[!is.na(BGC_Col),]
         st_as_sf(temp)
     })
     
@@ -175,8 +191,8 @@ server <- function(input, output) {
         }else{
             feasDat <- prepEdaDat()
         }
-        temp <- feasDat[wna_zone, on = "BGC"]
-        temp[is.na(Col), Col := BGC_Col]
+        temp <- wna_zone[feasDat, on = "BGC"]
+        temp <- temp[!is.na(BGC_Col),]
         st_as_sf(temp)
     })
     
@@ -199,6 +215,37 @@ server <- function(input, output) {
         }
     })
     
+    
+    
+    prepTable <- reactive({
+        event <- input$map_polygon_click
+        temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?",event))
+        unit <- gsub("tooltip.{3}","",temp)
+        if(is.null(input$edaplot_selected)){
+            feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3),
+                            .(SuitMax = min(Feasible)), by = .(Spp,BGC)]
+            feasMax <- feasMax[Spp != "X",]
+            tabOut <- data.table::dcast(feasMax, BGC ~ Spp, value.var = "SuitMax")
+        }else{
+            id <- as.numeric(input$edaplot_selected)
+            idSub <- idDat[ID == id,.(ID,Edatopic)]
+            edaSub <- eda[idSub, on = "Edatopic"]
+            edaSub <- edaSub[BGC == unit,]
+            dat <- feas[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
+            tabOut <- data.table::dcast(dat, SS_NoSpace ~ Spp, value.var = "Feasible")
+            setnames(tabOut, old = "SS_NoSpace", new = "BGC")
+        }
+        tabOut
+    })
+    
+    observeEvent({input$map_polygon_click},{
+        dat <- prepTable()
+        output$hotTab <- renderRHandsontable({
+            rhandsontable(dat, readOnly = F) %>%
+                hot_validate_numeric(cols = 2:length(dat), choices = c(1,2,3,5))
+        })
+    })
+    
     output$edaplot <- renderGirafe({
         gg <- ggplot()+
             geom_blank()+
@@ -218,8 +265,17 @@ server <- function(input, output) {
                options = list(opts_selection(type = "single")))
     })
     
+    observeEvent(input$map_polygon_click, {
+        event <- input$map_polygon_click
+        temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?",event))
+        unit <- gsub("tooltip.{3}","",temp)
+        output$temp <- renderText({
+            paste0("Current unit: ", unit)
+        })
+    })
+    
     output$info <- renderText({
-        paste0("You have selected: ", input$edaplot_selected)#labs[as.numeric(input$edaplot_selected)]
+        paste0("You have selected: ", labs[as.numeric(input$edaplot_selected)])#labs[as.numeric(input$edaplot_selected)]
     })
 }
 
