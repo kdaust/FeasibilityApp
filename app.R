@@ -8,6 +8,15 @@ library(ggplot2)
 library(ggiraph)
 library(scales)
 library(rhandsontable)
+library(shinyalert)
+library(RPostgreSQL)
+
+##connect to database
+###Read in climate summary data
+drv <- dbDriver("PostgreSQL")
+sapply(dbListConnections(drv), dbDisconnect)
+con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", 
+                 port = 5432, dbname = "feasibility_update")
 
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
@@ -29,6 +38,15 @@ alpha <- "4D"
 cols[,Col := paste0(Col,alpha)]
 grRamp <- colorRamp(c("#443e3dFF","#a29f9eFF"),alpha = T) ##colour ramp for gray values
 
+##setup species picker
+treelist <- fread("Tree_List_2020.csv")
+treelist <- treelist[Bad != "x",.(TreeCode,Group)]
+sppList <- list()
+for(nm in unique(treelist$Group)){
+    temp <- treelist[Group == nm, TreeCode]
+    sppList[[nm]] <- temp
+}
+
 wna_zone <- st_read(dsn = "BC_VSmall.gpkg")
 wna_zone <- st_transform(wna_zone, 4326) %>% st_cast("POLYGON")
 wna_zone <- as.data.table(wna_zone)
@@ -40,11 +58,18 @@ grd <- st_read(dsn = "WNA_TilesOutlines.gpkg")
 wna <- st_transform(wna, 4326) %>% st_cast("POLYGON")
 wna <- as.data.table(wna)
 wna[cols, BGC_Col := i.Col, on = "BGC"]
-feas <- fread("Feasibility_v11_21.csv")
+feas <- fread("Feasibility_v11_22.csv")
 feas <- feas[,.(BGC,SS_NoSpace,Spp,Feasible)]
+setnames(feas, old = "Spp",new = "SppSplit")
+feas[,Spp := SppSplit]
+feas[SppSplit %in% c("Fdi","Fdc"),Spp := "Fd"]
+feas[SppSplit %in% c("Pli","Plc"),Spp := "Pl"]
+feas[SppSplit %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss"),Spp := "Sx"]
+feas[SppSplit %in% c("Pyi","Pyc"),Spp := "Py"]
+
 eda <- fread("Edatopic_v11_20.csv")
 eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
-spp.choose <- sort(unique(feas$Spp))
+#spp.choose <- sort(unique(feas$Spp))
 suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3dFF","#736e6eFF","#a29f9eFF"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
 renderedTiles <- vector("numeric")
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
@@ -52,11 +77,12 @@ set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ
 # Define UI for application that draws a histogram
 ui <- navbarPage("Species Feasibility",
                  tabPanel("BC Map",
+                          useShinyalert(),
                           fillPage(
                                   column(3,
                                          pickerInput("sppPick",
                                                      label = "Select Tree Species",
-                                                     choices = spp.choose,
+                                                     choices = sppList,
                                                      selected = "Pl"),
                                          awesomeRadio("type",
                                                       label = "Select Summary",
@@ -68,12 +94,15 @@ ui <- navbarPage("Species Feasibility",
                                   ),
                                   column(9,
                                          withSpinner(
-                                             mapdeckOutput("map", height = 700),
+                                             mapdeckOutput("map", height = 600),
                                              type = 6
                                          ),
-                                         h4("Suitability data for selected polygon"),
                                          br(),
-                                         rHandsontableOutput("hotTab")
+                                         h2("Suitability data for selected polygon"),
+                                         h4("You can edit the feasibility values. When you click submit, 
+                                            the updated values will be sent to a database"),
+                                         rHandsontableOutput("hotTab"),
+                                         actionBttn("submitdat", label = "Submit!")
                                          
                                   )
                               
@@ -105,18 +134,18 @@ server <- function(input, output) {
         input$edaplot_selected)
     },{
         dat <- mergeSmallDat()
-        ##browser()
-        mapdeck_update(map_id = "map") %>%
-            #clear_polygon(layer_id = "zone") %>%
-            add_polygon(dat,
-                        layer_id = "zone",
-                        fill_colour = "Col",
-                        tooltip = "Lab",
-                        auto_highlight = F,
-                        focus_layer = F,
-                        update_view = F
-            )
-        
+        if(!is.null(dat)){
+            mapdeck_update(map_id = "map") %>%
+                #clear_polygon(layer_id = "zone") %>%
+                add_polygon(dat,
+                            layer_id = "zone",
+                            fill_colour = "Col",
+                            tooltip = "Lab",
+                            auto_highlight = F,
+                            focus_layer = F,
+                            update_view = F
+                )
+        }
     }, priority = 5)
     
     observeEvent({
@@ -151,9 +180,16 @@ server <- function(input, output) {
     
     prepDatSimple <- reactive({
         feasMax <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),
-                        .(SuitMax = min(Feasible)), by = BGC]
+                        .(SuitMax = min(Feasible)), by = .(BGC,SppSplit)]
         if(input$type == "P/A"){
-            feasMax[,Col := "#443e3dFF"]
+            if(length(unique(feasMax$SppSplit)) > 1){
+                feasMax[,SppSplit := as.numeric(as.factor(SppSplit))]
+                tempCol <- grRamp(rescale(feasMax$SppSplit,to = c(0,0.6)))
+                feasMax[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
+            }else{
+                feasMax[,Col := "#443e3dFF"]
+            }
+            
         }else{
             feasMax[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
         }
@@ -193,7 +229,13 @@ server <- function(input, output) {
         }
         temp <- wna_zone[feasDat, on = "BGC"]
         temp <- temp[!is.na(BGC_Col),]
-        st_as_sf(temp)
+        if(nrow(temp) == 0){
+            shinyalert("Oh oh!","There are no suitable locations for this selection!", type = "error")
+            return(NULL)
+        }else{
+            st_as_sf(temp)
+        }
+        
     })
     
     getTiles <- reactive({
@@ -214,8 +256,6 @@ server <- function(input, output) {
             NULL
         }
     })
-    
-    
     
     prepTable <- reactive({
         event <- input$map_polygon_click
@@ -238,14 +278,34 @@ server <- function(input, output) {
         tabOut
     })
     
-    observeEvent({input$map_polygon_click},{
-        dat <- prepTable()
-        output$hotTab <- renderRHandsontable({
-            rhandsontable(dat, readOnly = F) %>%
-                hot_validate_numeric(cols = 2:length(dat), choices = c(1,2,3,5))
-        })
+    observeEvent({c(input$map_polygon_click, input$edaplot_selected)},{
+        if(!is.null(input$map_polygon_click)){
+            dat <- prepTable()
+            output$hotTab <- renderRHandsontable({
+                rhandsontable(dat)
+            })
+        }
     })
     
+    observeEvent(input$submitdat,{
+        shinyalert("Enter your initials:", type = "input", inputId = "initials", callbackR = sendToDb)
+    })
+        
+    sendToDb <- function(nme){
+        dat <- as.data.table(hot_to_r(input$hotTab))
+        if(!is.null(input$edaplot_selected)){
+            dat <- melt(dat, id.vars = "BGC", value.name = "Feas_New", variable.name = "Spp")
+            setnames(dat, old = "BGC", new = "SS_NoSpace")
+            datComb <- feas[dat, on = c("SS_NoSpace","Spp")]
+            datComb[,SppSplit := NULL]
+            datComb <- datComb[!is.na(Feas_New),]
+            datComb <- datComb[Feasible != Feas_New,]
+            datComb[,Modifier := nme]
+            dbWriteTable(con, name = "edatope_updates", value = datComb, row.names = F, append = T)
+            shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
+        }
+    }
+
     output$edaplot <- renderGirafe({
         gg <- ggplot()+
             geom_blank()+
@@ -275,7 +335,11 @@ server <- function(input, output) {
     })
     
     output$info <- renderText({
-        paste0("You have selected: ", labs[as.numeric(input$edaplot_selected)])#labs[as.numeric(input$edaplot_selected)]
+        paste0("You have selected: ", labs[as.numeric(input$edaplot_selected)])
+    })
+    
+    onStop(function() {
+        dbDisconnect(conn = con)
     })
 }
 

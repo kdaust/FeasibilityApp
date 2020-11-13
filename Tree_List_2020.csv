@@ -1,0 +1,100 @@
+TreeCode,ScientificName,EnglishName,Group,Bad
+Acb,Populus balsamifera,balsam poplar,Broadleaf_BC,
+Act,Populus trichocarpa,black cottonwood,Broadleaf_BC,
+At,Populus tremuloides,trembling aspen,Broadleaf_BC,
+Dr,Alnus rubra,red alder,Broadleaf_BC,
+Ea,Betula neoalaskana,Alaska birch,Broadleaf_BC,
+Ep,Betula papyrifera,paper birch,Broadleaf_BC,
+Ew,Betula occidentalis,water birch,Broadleaf_BC,
+Gp,Cornus nuttallii,western flowering dogwood,Broadleaf_BC,x
+Kc,Frangula purshiana,cascara buckthorn,Broadleaf_BC,x
+Kc,Frangula purshiana ssp. purshiana,cascara buckthorn,Broadleaf_BC,x
+Mb,Acer macrophyllum,bigleaf maple,Broadleaf_BC,
+Mv,Acer circinatum,vine maple,Broadleaf_BC,x
+Qg,Quercus garryana var. garryana,Garry oak,Broadleaf_BC,
+Qg,Quercus garryana,Garry oak,Broadleaf_BC,
+Ra,Arbutus menziesii,Pacific arbutus,Broadleaf_BC,
+Up,Malus fusca,Pacific crabapple,Broadleaf_BC,x
+Vb,Prunus emarginata,bitter cherry,Broadleaf_BC,x
+Vp,Prunus pensylvanica,pin cherry,Broadleaf_BC,x
+Vv,Prunus virginiana,choke cherry,Broadleaf_BC,x
+Vv,Prunus virginiana ssp. melanocarpa,black choke cherry,Broadleaf_BC,x
+Vv,Prunus virginiana var. demissa,choke cherry,Broadleaf_BC,x
+Wa,Salix amygdaloides,peach-leaved willow,Broadleaf_BC,x
+Wb,Salix bebbiana,Bebb's willow,Broadleaf_BC,x
+Wd,Salix discolor,pussy willow,Broadleaf_BC,x
+Wp,Salix lasiandra,Pacific willow,Broadleaf_BC,x
+Wp,Salix lasiandra var. caudata,whiplash Pacific willow,Broadleaf_BC,x
+Wp,Salix lasiandra var. lasiandra,Pacific willow,Broadleaf_BC,x
+Ws,Salix scouleriana,Scouler's willow,Broadleaf_BC,x
+Wt,Salix sitchensis,Sitka willow,Broadleaf_BC,x
+Ee,Betula pendula,weeping birch,Broadleaf_Exotic,x
+Es,Betula pubescens,downy birch,Broadleaf_Exotic,x
+Es,Betula pubescens ssp. pubescens,downy birch,Broadleaf_Exotic,x
+Mn,Acer platanoides,Norway maple,Broadleaf_Exotic,x
+Ms,Acer pseudoplatanus,sycamore maple,Broadleaf_Exotic,x
+Od,Sorbus aucuparia,European mountain-ash,Broadleaf_Exotic,x
+Oe,Ulmus pumila,Siberian elm,Broadleaf_Exotic,x
+Of,Pyrus communis,common pear,Broadleaf_Exotic,x
+Oi,Carya ovata,shagbark hickory,Broadleaf_Exotic,x
+Oj,Ailanthus altissima,tree-of-heaven,Broadleaf_Exotic,x
+Ok,Juglans ailantifolia,Japanese walnut,Broadleaf_Exotic,x
+Qe,Quercus robur,English oak,Broadleaf_Exotic,x
+Qw,Quercus alba,white oak,Broadleaf_Exotic,x
+Ua,Malus pumila,common apple,Broadleaf_Exotic,x
+Vs,Prunus avium,sweet cherry,Broadleaf_Exotic,x
+Ad,Populus deltoides,eastern cottonwood,Broadleaf_Native,
+Ad,Populus deltoides ssp. deltoides,eastern cottonwood,Broadleaf_Native,x
+Ad,Populus deltoides ssp. monilifera,plains eastern cottonwood,Broadleaf_Native,x
+Ey,Betula alleghaniensis,yellow birch,Broadleaf_Native,x
+Me,Acer negundo,Manitoba maple,Broadleaf_Native,
+Og,Fraxinus latifolia,Oregon ash,Broadleaf_Native,
+Oh,Fraxinus americana,white ash,Broadleaf_Native,
+Qb,Quercus kelloggii,black oak,Broadleaf_Native,
+Qc,Quercus chrysolepsis,canyon live oak,Broadleaf_Native,
+Qm,Quercus macrocarpa,burr oak,Broadleaf_Native,
+Qs,Quercus sadleriana,Sadler oak,Broadleaf_Native,
+Qv,Quercus vaccinifolia,huckleberry oak,Broadleaf_Native,
+UMCA,Umbellularia californica,California laurel,Broadleaf_Native,x
+LIDE,Lithocarpus densiflorus,tanoak,Broadleaf_Native,x
+CHCH,Chrysolepis chrysophylla,giant chinkapin (syn Castanopsis chrysophylla),Broadleaf_Native,x
+Ba,Abies amabilis,amabilis fir,Conifer_BC,
+Bg,Abies grandis,grand fir,Conifer_BC,
+Bl,Abies lasiocarpa,subalpine fir,Conifer_BC,
+Cw,Thuja plicata,western redcedar,Conifer_BC,
+Fd,Pseudotsuga menziesii,Douglas-fir,Conifer_BC,x
+Fd,Pseudotsuga menziesii var. glauca,Rocky Mountain Douglas-fir,Conifer_BC,
+Hm,Tsuga mertensiana,mountain hemlock,Conifer_BC,
+Hw,Tsuga heterophylla,western hemlock,Conifer_BC,
+Jr,Juniperus scopulorum,Rocky Mountain juniper,Conifer_BC,
+Js,Juniperus maritima,seaside juniper,Conifer_BC,
+La,Larix lyallii,subalpine larch,Conifer_BC,
+Lt,Larix laricina,tamarack,Conifer_BC,
+Lw,Larix occidentalis,western larch,Conifer_BC,
+Pa,Pinus albicaulis,whitebark pine,Conifer_BC,
+Pf,Pinus flexilis,limber pine,Conifer_BC,
+Pl,Pinus contorta,lodgepole pine,Conifer_BC,x
+Pl,Pinus contorta var. latifolia,shore pine,Conifer_BC,
+Pw,Pinus monticola,western white pine,Conifer_BC,
+Py,Pinus ponderosa,ponderosa pine,Conifer_BC,x
+Py,Pinus ponderosa var. ponderosa,Columbia ponderosa pine,Conifer_BC,
+Sb,Picea mariana,black spruce,Conifer_BC,
+Sx,Picea engelmannii,Engelmann spruce,Conifer_BC,
+Tw,Taxus brevifolia,Pacific yew,Conifer_BC,
+Yc,Callitropsis   nootkatensis,yellow-cedar,Conifer_BC,
+Ld,Larix gmelinii,Dahurian larch,Conifer_Exotic,x
+Ls,Larix siberica,Siberian larch,Conifer_Exotic,x
+Sn,Picea abies,Norway spruce,Conifer_Exotic,x
+Bb,Abies balsamea,balsam fir,Conifer_Native,
+Bc,Abies concolor,white fir,Conifer_Native,
+Bm,Abies magnifica var. shastensis,Shasta red fir,Conifer_Native,
+Bm,Abies magnifica,red fir,Conifer_Native,
+Bp,Abies procera,noble fir,Conifer_Native,
+Oa,Calocedrus decurrens,incense cedar,Conifer_Native,
+Ob,Sequoiadendron giganteum,giant sequoia,Conifer_Native,
+Oc,Sequoia sempervirens,coast redwood,Conifer_Native,
+Pj,Pinus banksiana,jack pine,Conifer_Native,
+Pm,Pinus radiata,Monterey pine,Conifer_Native,
+Pr,Pinus resinosa,red pine,Conifer_Native,
+Ps,Pinus lambertiana,sugar pine,Conifer_Native,
+Yp,Chamaecyparis lawsoniana,Port Orford-cedar,Conifer_Native,
