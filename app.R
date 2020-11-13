@@ -66,6 +66,7 @@ feas[SppSplit %in% c("Fdi","Fdc"),Spp := "Fd"]
 feas[SppSplit %in% c("Pli","Plc"),Spp := "Pl"]
 feas[SppSplit %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss"),Spp := "Sx"]
 feas[SppSplit %in% c("Pyi","Pyc"),Spp := "Py"]
+feasOrig <- feas
 
 eda <- fread("Edatopic_v11_20.csv")
 eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
@@ -78,7 +79,7 @@ set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ
 ui <- navbarPage("Species Feasibility",
                  tabPanel("BC Map",
                           useShinyalert(),
-                          fillPage(
+                          fluidPage(
                                   column(3,
                                          pickerInput("sppPick",
                                                      label = "Select Tree Species",
@@ -88,13 +89,14 @@ ui <- navbarPage("Species Feasibility",
                                                       label = "Select Summary",
                                                       choices = c("P/A","Max Suit"),
                                                       selected =  "P/A"),
+                                         actionBttn("updatedfeas","Show Updated Feasibility Values"),
                                          h4("Select Edatopic Space: \n"),
                                          girafeOutput("edaplot", width = "400px"),
                                          verbatimTextOutput("info")
                                   ),
                                   column(9,
                                          withSpinner(
-                                             mapdeckOutput("map", height = 600),
+                                             mapdeckOutput("map", height = 700),
                                              type = 6
                                          ),
                                          br(),
@@ -131,7 +133,8 @@ server <- function(input, output) {
     observeEvent({c(
         input$sppPick,
         input$type,
-        input$edaplot_selected)
+        input$edaplot_selected,
+        input$updatedfeas)
     },{
         dat <- mergeSmallDat()
         if(!is.null(dat)){
@@ -151,7 +154,8 @@ server <- function(input, output) {
     observeEvent({
         c(input$sppPick, 
         input$type,
-        input$edaplot_selected)},{
+        input$edaplot_selected,
+        input$updatedfeas)},{
             mapdeck_update(map_id = "map") %>%
                 clear_polygon(layer_id = "polys")
         }, priority = 10)
@@ -160,7 +164,8 @@ server <- function(input, output) {
         c(input$sppPick,
           input$type,
           input$map_view_change,
-          input$edaplot_selected)
+          input$edaplot_selected,
+          input$updatedfeas)
     },{
         dat <- getTiles()
         if(!is.null(dat)){
@@ -177,6 +182,22 @@ server <- function(input, output) {
         }
         
     }, priority = 2)
+    
+    observeEvent(input$updatedfeas,{
+        if(input$updatedfeas %% 2 == 1){
+            newDat <- dbGetQuery(con, "SELECT * FROM edatope_updates")
+            newDat <- as.data.table(newDat)
+            newDat <- newDat[,.(unit,spp,new)]
+            setnames(newDat, c("SS_NoSpace","SppSplit","NewFeas"))
+            temp <- newDat[feasOrig, on = c("SS_NoSpace","SppSplit")]
+            temp[!is.na(NewFeas), Feasible := NewFeas]
+            temp[,NewFeas := NULL]
+            feas <<- temp
+        }else{
+            feas <<- feasOrig
+        }
+
+    }, priority = 20)
     
     prepDatSimple <- reactive({
         feasMax <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),
@@ -272,8 +293,8 @@ server <- function(input, output) {
             edaSub <- eda[idSub, on = "Edatopic"]
             edaSub <- edaSub[BGC == unit,]
             dat <- feas[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
-            tabOut <- data.table::dcast(dat, SS_NoSpace ~ Spp, value.var = "Feasible")
-            setnames(tabOut, old = "SS_NoSpace", new = "BGC")
+            tabOut <- data.table::dcast(dat, SS_NoSpace ~ SppSplit, value.var = "Feasible")
+            setnames(tabOut, old = c("SS_NoSpace"), new = c("BGC"))
         }
         tabOut
     })
@@ -301,6 +322,7 @@ server <- function(input, output) {
             datComb <- datComb[!is.na(Feas_New),]
             datComb <- datComb[Feasible != Feas_New,]
             datComb[,Modifier := nme]
+            setnames(datComb, c("bgc","unit","feasible","spp","new","modifier"))
             dbWriteTable(con, name = "edatope_updates", value = datComb, row.names = F, append = T)
             shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
         }
