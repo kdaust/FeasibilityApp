@@ -187,7 +187,7 @@ server <- function(input, output) {
         if(input$updatedfeas %% 2 == 1){
             newDat <- dbGetQuery(con, "SELECT * FROM edatope_updates")
             newDat <- as.data.table(newDat)
-            newDat <- newDat[,.(unit,spp,new)]
+            newDat <- newDat[,.(unit,sppsplit,new)]
             setnames(newDat, c("SS_NoSpace","SppSplit","NewFeas"))
             temp <- newDat[feasOrig, on = c("SS_NoSpace","SppSplit")]
             temp[!is.na(NewFeas), Feasible := NewFeas]
@@ -316,13 +316,13 @@ server <- function(input, output) {
         dat <- as.data.table(hot_to_r(input$hotTab))
         if(!is.null(input$edaplot_selected)){
             dat <- melt(dat, id.vars = "BGC", value.name = "Feas_New", variable.name = "Spp")
-            setnames(dat, old = "BGC", new = "SS_NoSpace")
-            datComb <- feas[dat, on = c("SS_NoSpace","Spp")]
-            datComb[,SppSplit := NULL]
+            setnames(dat, old = c("BGC","Spp"), new = c("SS_NoSpace","SppSplit"))
+            datComb <- feas[dat, on = c("SS_NoSpace","SppSplit")]
+            datComb[,Spp := NULL]
             datComb <- datComb[!is.na(Feas_New),]
             datComb <- datComb[Feasible != Feas_New,]
             datComb[,Modifier := nme]
-            setnames(datComb, c("bgc","unit","feasible","spp","new","modifier"))
+            setnames(datComb, c("bgc","unit","sppsplit","feasible","new","modifier"))
             dbWriteTable(con, name = "edatope_updates", value = datComb, row.names = F, append = T)
             shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
         }
