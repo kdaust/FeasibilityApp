@@ -66,14 +66,56 @@ feas[SppSplit %in% c("Fdi","Fdc"),Spp := "Fd"]
 feas[SppSplit %in% c("Pli","Plc"),Spp := "Pl"]
 feas[SppSplit %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss"),Spp := "Sx"]
 feas[SppSplit %in% c("Pyi","Pyc"),Spp := "Py"]
+setkey(feas,BGC,SppSplit)
 feasOrig <- feas
 
 eda <- fread("Edatopic_v11_20.csv")
 eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
-#spp.choose <- sort(unique(feas$Spp))
+eda[,SMR := as.numeric(gsub("[[:alpha:]]","", Edatopic))]
+##max suitability colours
 suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3dFF","#736e6eFF","#a29f9eFF"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
+##climatic suitability colours
+zonalOpt <- "#3e6837ff"
+wetOpt <- "#c0540aff"
+splitOpt <- "#df00a9ff"
+dryOpt <- "#000aa3ff"
+
 renderedTiles <- vector("numeric")
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
+
+BCBGCs <- c("BAFAun", "BAFAunp", "BGxh1", "BGxh2", "BGxh3", "BGxw1", "BGxw2", 
+            "BWBSdk", "BWBSmk", "BWBSmw", "BWBSvk", "BWBSwk1", "BWBSwk2", 
+            "BWBSwk3", "CDFmm", "CMAun", "CMAunp", "CMAwh", "CWHdm", "CWHds1", 
+            "CWHds2", "CWHmm1", "CWHmm2", "CWHms1", "CWHms2", "CWHvh1", "CWHvh2", 
+            "CWHvh3", "CWHvm1", "CWHvm1_PR", "CWHvm2", "CWHwh1", "CWHwh2", 
+            "CWHwm", "CWHws1", "CWHws2", "CWHxm1", "CWHxm2", "ESSFdc1", "ESSFdc2", 
+            "ESSFdc3", "ESSFdcp", "ESSFdcw", "ESSFdk1", "ESSFdk2", "ESSFdkp", 
+            "ESSFdkw", "ESSFdv1", "ESSFdv2", "ESSFdvp", "ESSFdvw", "ESSFmc", 
+            "ESSFmcp", "ESSFmh", "ESSFmk", "ESSFmkp", "ESSFmm1", "ESSFmm2", 
+            "ESSFmm3", "ESSFmmp", "ESSFmmw", "ESSFmv1", "ESSFmv2", "ESSFmv3", 
+            "ESSFmv4", "ESSFmvp", "ESSFmw", "ESSFmw1", "ESSFmw2", "ESSFmwp", 
+            "ESSFmww", "ESSFun", "ESSFunp", "ESSFvc", "ESSFvcp", "ESSFvcw", 
+            "ESSFwc2", "ESSFwc3", "ESSFwc4", "ESSFwcp", "ESSFwcw", "ESSFwh1", 
+            "ESSFwh2", "ESSFwh3", "ESSFwk1", "ESSFwk2", "ESSFwm1", "ESSFwm2", 
+            "ESSFwm3", "ESSFwm4", "ESSFwmp", "ESSFwmw", "ESSFwv", "ESSFwvp", 
+            "ESSFxc1", "ESSFxc2", "ESSFxc3", "ESSFxcp", "ESSFxcw", "ESSFxv1", 
+            "ESSFxv2", "ESSFxvp", "ESSFxvw", "ICHdk", "ICHdm", "ICHdw1", 
+            "ICHdw3", "ICHdw4", "ICHmc1", "ICHmc1a", "ICHmc2", "ICHmk1", 
+            "ICHmk2", "ICHmk3", "ICHmk4", "ICHmk5", "ICHmm", "ICHmw1", "ICHmw2", 
+            "ICHmw3", "ICHmw4", "ICHmw5", "ICHvc", "ICHvk1", "ICHvk2", "ICHwc", 
+            "ICHwk1", "ICHwk2", "ICHwk3", "ICHwk4", "ICHxw", "ICHxwa", "IDFdc", 
+            "IDFdk1", "IDFdk2", "IDFdk3", "IDFdk4", "IDFdk5", "IDFdm1", "IDFdm2", 
+            "IDFdw", "IDFmw1", "IDFmw2", "IDFww", "IDFww1", "IDFxc", "IDFxh1", 
+            "IDFxh2", "IDFxh4", "IDFxk", "IDFxm", "IDFxw", "IDFxx2", "IMAun", 
+            "IMAunp", "MHmm1", "MHmm2", "MHmmp", "MHun", "MHunp", "MHwh", 
+            "MHwh1", "MHwhp", "MSdc1", "MSdc2", "MSdc3", "MSdk", "MSdm1", 
+            "MSdm2", "MSdm3", "MSdv", "MSdw", "MSmw1", "MSmw2", "MSxk1", 
+            "MSxk2", "MSxk3", "MSxv", "PPxh1", "PPxh2", "PPxh3", "SBPSdc", 
+            "SBPSmc", "SBPSmk", "SBPSxc", "SBSdh1", "SBSdh2", "SBSdk", "SBSdw1", 
+            "SBSdw2", "SBSdw3", "SBSmc1", "SBSmc2", "SBSmc3", "SBSmh", "SBSmk1", 
+            "SBSmk2", "SBSmm", "SBSmw", "SBSun", "SBSvk", "SBSwk1", "SBSwk2", 
+            "SBSwk3", "SBSwk3a", "SWBmk", "SWBmks", "SWBun", "SWBuns", "SWBvk", 
+            "SWBvks")
 
 # Define UI for application that draws a histogram
 ui <- navbarPage("Species Feasibility",
@@ -81,18 +123,23 @@ ui <- navbarPage("Species Feasibility",
                           useShinyalert(),
                           fluidPage(
                                   column(3,
+                                         h2("Welcome to the tree feasibility investigation tool!"),
+                                         p("Select a species code to investigate its feasibility on the map. You can select different
+                                           summaries by subzone/variant, or select an edatopic position on the chart below to show
+                                           feasibility in all site series in that space (unclick a selected edatope to return to summaries).
+                                           Click on a map polygon to show the feasibilities in a table format, which you can update and
+                                           submit to the database. To view updated feasibility instead of original feasibility, click the button
+                                           (and click again to return to original feasibility)."),
                                          pickerInput("sppPick",
                                                      label = "Select Tree Species",
                                                      choices = sppList,
                                                      selected = "Pl"),
                                          awesomeRadio("type",
-                                                      label = "Select Summary",
-                                                      choices = c("P/A","Max Suit"),
-                                                      selected =  "P/A"),
-                                         actionBttn("updatedfeas","Show Updated Feasibility Values"),
-                                         h4("Select Edatopic Space: \n"),
-                                         girafeOutput("edaplot", width = "400px"),
-                                         verbatimTextOutput("info")
+                                                      label = "Select Summary by Subzone",
+                                                      choices = c("P/A","Max Suit","Climatic Suit"),
+                                                      selected =  "Climatic Suit"),
+                                         h4("Or Select Edatopic Space: \n"),
+                                         girafeOutput("edaplot", width = "400px")
                                   ),
                                   column(9,
                                          withSpinner(
@@ -100,12 +147,15 @@ ui <- navbarPage("Species Feasibility",
                                              type = 6
                                          ),
                                          br(),
-                                         h2("Suitability data for selected polygon"),
-                                         h4("You can edit the feasibility values. When you click submit, 
-                                            the updated values will be sent to a database"),
-                                         rHandsontableOutput("hotTab"),
-                                         actionBttn("submitdat", label = "Submit!")
-                                         
+                                         h2("Suitability data for selected polygon:"),
+                                         p("Edit the feasibility values here. When you click submit, 
+                                            the updated values will be sent to a database. If you are looking
+                                           at updated values, they will be shown with a pink background on the table."),
+                                         fluidRow(
+                                             rHandsontableOutput("hot"),
+                                             actionBttn("submitdat", label = "Submit!"),
+                                             actionBttn("updatedfeas","Show Updated Feasibility Values")
+                                         )
                                   )
                               
                               )
@@ -115,6 +165,7 @@ ui <- navbarPage("Species Feasibility",
 
 
 server <- function(input, output) {
+    globalFeas <- reactiveValues(dat = feasOrig)
     
     ##base BGC map
     output$map <- renderMapdeck({
@@ -137,6 +188,7 @@ server <- function(input, output) {
         input$updatedfeas)
     },{
         dat <- mergeSmallDat()
+        print("Rendering map")
         if(!is.null(dat)){
             mapdeck_update(map_id = "map") %>%
                 #clear_polygon(layer_id = "zone") %>%
@@ -184,6 +236,7 @@ server <- function(input, output) {
     }, priority = 2)
     
     observeEvent(input$updatedfeas,{
+        print("Updating feasibility")
         if(input$updatedfeas %% 2 == 1){
             newDat <- dbGetQuery(con, "SELECT * FROM edatope_updates")
             newDat <- as.data.table(newDat)
@@ -192,14 +245,42 @@ server <- function(input, output) {
             temp <- newDat[feasOrig, on = c("SS_NoSpace","SppSplit")]
             temp[!is.na(NewFeas), Feasible := NewFeas]
             temp[,NewFeas := NULL]
-            feas <<- temp
+            setcolorder(temp, colnames(feasOrig))
+            globalFeas$dat <- temp
         }else{
-            feas <<- feasOrig
+            globalFeas$dat <- feasOrig
         }
 
     }, priority = 20)
     
+    ###calculate climatic suitability colours
+    prepClimSuit <- reactive({
+        feas <- globalFeas$dat
+        feas <- feas[BGC %in% BCBGCs,]
+        tempFeas <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),]
+        minDist <- tempFeas[,.SD[Feasible == min(Feasible, na.rm = T)],by = .(BGC)]
+        minDist[,ID := if(any(grepl("01", SS_NoSpace)) & Feasible[1] == 1) T else F, by = .(BGC)]
+        green <- minDist[(ID),]
+        green <- green[,.(Col = zonalOpt), by = .(BGC)]
+        
+        minDist <- minDist[ID == F,]
+        minDist[,ID := if(any(grepl("01", SS_NoSpace))) T else F, by = .(BGC)]
+        blue <- minDist[(ID),]
+        blue <- blue[,.(Col = dryOpt), by = .(BGC)]
+        
+        minDist <- minDist[ID == F,]
+        minEda <- eda[minDist, on = "SS_NoSpace"]
+        minEda <- minEda[,.(AvgEda = mean(SMR)), by = .(BGC,SS_NoSpace)]
+        minEda <- minEda[,.(Col = fifelse(all(AvgEda >= 3.5),wetOpt,
+                                          fifelse(all(AvgEda < 3.5), dryOpt, splitOpt))), by = .(BGC)]
+        climSuit <- rbind(green,blue,minEda)
+        climSuit <- climSuit[!is.na(BGC),]
+        return(climSuit)
+    })
+    
+    ##Prepare BGC colour table for non-edatopic
     prepDatSimple <- reactive({
+        feas <- globalFeas$dat
         feasMax <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),
                         .(SuitMax = min(Feasible)), by = .(BGC,SppSplit)]
         if(input$type == "P/A"){
@@ -211,14 +292,18 @@ server <- function(input, output) {
                 feasMax[,Col := "#443e3dFF"]
             }
             
-        }else{
+        }else if(input$type == "Max Suit"){
             feasMax[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
+        }else{
+            feasMax <- prepClimSuit()
         }
         feasMax[,Lab := BGC]
         feasMax[,.(BGC,Col,Lab)]
     })
     
+    ##Prepare BGC colours for edatopic option
     prepEdaDat <- reactive({
+        feas <- globalFeas$dat
         id <- as.numeric(input$edaplot_selected)
         idSub <- idDat[ID == id,.(ID,Edatopic)]
         edaSub <- eda[idSub, on = "Edatopic"]
@@ -231,6 +316,7 @@ server <- function(input, output) {
         feasSum[,.(BGC,Col,Lab)]
     })
     
+    ##join colours to big map
     mergeBigDat <- reactive({
         if(is.null(input$edaplot_selected)){
             feasDat <- prepDatSimple()
@@ -242,6 +328,7 @@ server <- function(input, output) {
         st_as_sf(temp)
     })
     
+    ##join colours to small map
     mergeSmallDat <- reactive({
         if(is.null(input$edaplot_selected)){
             feasDat <- prepDatSimple()
@@ -259,6 +346,7 @@ server <- function(input, output) {
         
     })
     
+    ##extract tiles based on current view
     getTiles <- reactive({
         bounds <- input$map_view_change
         if(!is.null(bounds) && bounds$viewBounds$north - bounds$viewBounds$south < 1.2){
@@ -278,10 +366,14 @@ server <- function(input, output) {
         }
     })
     
+    ##prepare suitability table when polygon clicked
     prepTable <- reactive({
         event <- input$map_polygon_click
         temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?",event))
         unit <- gsub("tooltip.{3}","",temp)
+        feas <- globalFeas$dat
+        idx_row <- NULL
+        idx_col <- NULL
         if(is.null(input$edaplot_selected)){
             feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3),
                             .(SuitMax = min(Feasible)), by = .(Spp,BGC)]
@@ -293,28 +385,64 @@ server <- function(input, output) {
             edaSub <- eda[idSub, on = "Edatopic"]
             edaSub <- edaSub[BGC == unit,]
             dat <- feas[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
-            tabOut <- data.table::dcast(dat, SS_NoSpace ~ SppSplit, value.var = "Feasible")
+            tabOut <- data.table::dcast(dat, SS_NoSpace ~ SppSplit, value.var = "Feasible", fun.aggregate = mean)
             setnames(tabOut, old = c("SS_NoSpace"), new = c("BGC"))
+            if(input$updatedfeas %% 2 == 1){
+                dat <- feasOrig[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
+                tabOrig <- data.table::dcast(dat, SS_NoSpace ~ SppSplit, value.var = "Feasible")
+                setnames(tabOrig, old = c("SS_NoSpace"), new = c("BGC"))
+                idx <- which(tabOut != tabOrig, arr.ind = T)
+                idx_row <- unname(idx[,1] - 1)
+                idx_col <- unname(idx[,2] - 1)
+            }
+            
         }
-        tabOut
+        list(dat = tabOut, rIdx = idx_row, cIdx = idx_col)
     })
     
-    observeEvent({c(input$map_polygon_click, input$edaplot_selected)},{
+    ##render suitability table, colour updated cells
+    observeEvent({c(input$map_polygon_click, 
+                    input$edaplot_selected,
+                    input$sppPick,
+                    input$updatedfeas)},{
         if(!is.null(input$map_polygon_click)){
-            dat <- prepTable()
-            output$hotTab <- renderRHandsontable({
-                rhandsontable(dat)
+            output$hot <- renderRHandsontable({
+                temp <- prepTable()
+                dat <- temp$dat
+                rhandsontable(data = dat,col_highlight = temp$cIdx, row_highlight = temp$rIdx) %>%
+                    hot_cols(renderer = "
+                function(instance, td, row, col, prop, value, cellProperties) {
+                Handsontable.renderers.NumericRenderer.apply(this, arguments);
+                if (instance.params) {
+                    hcols = instance.params.col_highlight
+                    hcols = hcols instanceof Array ? hcols : [hcols]
+                    hrows = instance.params.row_highlight
+                    hrows = hrows instanceof Array ? hrows : [hrows]
+                }
+                
+                var i;
+                for(i = 0; i < 100; i++){
+                    if (instance.params && (col === hcols[i] && row === hrows[i])) {
+                      td.style.background = 'pink';
+                    }
+                }
+                    
+            }
+                             ")
             })
         }
     })
     
+    ##ask for initials and call sendToDb
     observeEvent(input$submitdat,{
         shinyalert("Enter your initials:", type = "input", inputId = "initials", callbackR = sendToDb)
     })
         
+    ##compile and send updates to database
     sendToDb <- function(nme){
-        dat <- as.data.table(hot_to_r(input$hotTab))
+        dat <- as.data.table(hot_to_r(input$hot))
         if(!is.null(input$edaplot_selected)){
+            feas <- globalFeas$dat
             dat <- melt(dat, id.vars = "BGC", value.name = "Feas_New", variable.name = "Spp")
             setnames(dat, old = c("BGC","Spp"), new = c("SS_NoSpace","SppSplit"))
             datComb <- feas[dat, on = c("SS_NoSpace","SppSplit")]
@@ -328,6 +456,7 @@ server <- function(input, output) {
         }
     }
 
+    ##render interactive edatopic grid
     output$edaplot <- renderGirafe({
         gg <- ggplot()+
             geom_blank()+
@@ -347,14 +476,14 @@ server <- function(input, output) {
                options = list(opts_selection(type = "single")))
     })
     
-    observeEvent(input$map_polygon_click, {
-        event <- input$map_polygon_click
-        temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?",event))
-        unit <- gsub("tooltip.{3}","",temp)
-        output$temp <- renderText({
-            paste0("Current unit: ", unit)
-        })
-    })
+    # observeEvent(input$map_polygon_click, {
+    #     event <- input$map_polygon_click
+    #     temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?",event))
+    #     unit <- gsub("tooltip.{3}","",temp)
+    #     output$temp <- renderText({
+    #         paste0("Current unit: ", unit)
+    #     })
+    # })
     
     output$info <- renderText({
         paste0("You have selected: ", labs[as.numeric(input$edaplot_selected)])
