@@ -10,6 +10,7 @@ library(scales)
 library(rhandsontable)
 library(shinyalert)
 library(RPostgreSQL)
+library(shinyjs)
 
 ##connect to database
 ###Read in climate summary data
@@ -42,7 +43,7 @@ grRamp <- colorRamp(c("#443e3dFF","#a29f9eFF"),alpha = T) ##colour ramp for gray
 treelist <- fread("Tree_List_2020.csv")
 treelist <- treelist[Bad != "x",.(TreeCode,Group)]
 sppList <- list()
-for(nm in unique(treelist$Group)){
+for(nm in c("Conifer_BC","Broadleaf_BC","Conifer_Native","Broadleaf_Native")){
     temp <- treelist[Group == nm, TreeCode]
     sppList[[nm]] <- temp
 }
@@ -76,9 +77,9 @@ eda[,SMR := as.numeric(gsub("[[:alpha:]]","", Edatopic))]
 suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3dFF","#736e6eFF","#a29f9eFF"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
 ##climatic suitability colours
 zonalOpt <- "#3e6837ff"
-wetOpt <- "#c0540aff"
+wetOpt <- data.table(Feasible = c(1,2,3), Col = c("#c24f00ff","#cd804bff","#fbbd92ff"))
 splitOpt <- "#df00a9ff"
-dryOpt <- "#000aa3ff"
+dryOpt <- data.table(Feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8fdbff"))
 
 renderedTiles <- vector("numeric")
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
@@ -121,6 +122,7 @@ BCBGCs <- c("BAFAun", "BAFAunp", "BGxh1", "BGxh2", "BGxh3", "BGxw1", "BGxw2",
 ui <- navbarPage("Species Feasibility",
                  tabPanel("BC Map",
                           useShinyalert(),
+                          useShinyjs(),
                           fluidPage(
                                   column(3,
                                          h2("Welcome to the tree feasibility investigation tool!"),
@@ -151,6 +153,7 @@ ui <- navbarPage("Species Feasibility",
                                          p("Edit the feasibility values here. When you click submit, 
                                             the updated values will be sent to a database. If you are looking
                                            at updated values, they will be shown with a pink background on the table."),
+                                         textOutput("tableInfo"),
                                          fluidRow(
                                              rHandsontableOutput("hot"),
                                              actionBttn("submitdat", label = "Submit!"),
@@ -253,6 +256,14 @@ server <- function(input, output) {
 
     }, priority = 20)
     
+    # observeEvent(input$edaplot_selected,{
+    #     if(is.null(input$edaplot_selected)){
+    #         disable("submitdat")
+    #     }else{
+    #         enable("submitdat")
+    #     }
+    # })
+    
     ###calculate climatic suitability colours
     prepClimSuit <- reactive({
         feas <- globalFeas$dat
@@ -266,14 +277,23 @@ server <- function(input, output) {
         minDist <- minDist[ID == F,]
         minDist[,ID := if(any(grepl("01", SS_NoSpace))) T else F, by = .(BGC)]
         blue <- minDist[(ID),]
-        blue <- blue[,.(Col = dryOpt), by = .(BGC)]
+        blue <- blue[,.(Feasible = min(Feasible)), by = .(BGC)]
         
         minDist <- minDist[ID == F,]
         minEda <- eda[minDist, on = "SS_NoSpace"]
-        minEda <- minEda[,.(AvgEda = mean(SMR)), by = .(BGC,SS_NoSpace)]
-        minEda <- minEda[,.(Col = fifelse(all(AvgEda >= 3.5),wetOpt,
-                                          fifelse(all(AvgEda < 3.5), dryOpt, splitOpt))), by = .(BGC)]
-        climSuit <- rbind(green,blue,minEda)
+        minEda <- minEda[,.(AvgEda = mean(SMR)), by = .(BGC,SS_NoSpace,Feasible)]
+        minEda <- minEda[,.(Col = fifelse(all(AvgEda >= 3.5),"WET",
+                                          fifelse(all(AvgEda < 3.5), "DRY", splitOpt)), Feasible = min(Feasible)), by = .(BGC)]
+        temp <- minEda[Col == "DRY",]
+        temp[,Col := NULL]
+        blue <- rbind(blue,temp)
+        red <- minEda[Col == "WET",]
+        minEda <- minEda[!Col %in% c("WET","DRY"),.(BGC,Col)]
+        blue[dryOpt, Col := i.Col, on = "Feasible"]
+        red[wetOpt, Col := i.Col, on = "Feasible"]
+        blue[,Feasible := NULL]
+        red[,Feasible := NULL]
+        climSuit <- rbind(green,blue,red,minEda)
         climSuit <- climSuit[!is.na(BGC),]
         return(climSuit)
     })
@@ -375,10 +395,22 @@ server <- function(input, output) {
         idx_row <- NULL
         idx_col <- NULL
         if(is.null(input$edaplot_selected)){
-            feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3),
-                            .(SuitMax = min(Feasible)), by = .(Spp,BGC)]
-            feasMax <- feasMax[Spp != "X",]
-            tabOut <- data.table::dcast(feasMax, BGC ~ Spp, value.var = "SuitMax")
+            if(input$type == "Climatic Suit"){
+                tempFeas <- feas[BGC == unit & Feasible %in% c(1,2,3),]
+                tempEda <- eda[tempFeas, on = "SS_NoSpace"]
+                tempEda <- tempEda[!is.na(SMR),]
+                tempEda <- tempEda[,.(AvgSMR = mean(SMR)), by = .(SS_NoSpace,Feasible,SppSplit)]
+                zonalSMR <- tempEda[grep("01",SS_NoSpace),AvgSMR][1]
+                tempEda[,SSType := fifelse(AvgSMR == zonalSMR,"Zonal",
+                                          fifelse(AvgSMR < zonalSMR,"Dry","Wet"))]
+                tabOut <- dcast(tempEda, SSType ~ SppSplit, value.var = "Feasible", fun.aggregate = min)
+                tabOut[tabOut == 0] <- NA
+            }else{
+                feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3),
+                                .(SuitMax = min(Feasible)), by = .(Spp,BGC)]
+                feasMax <- feasMax[Spp != "X",]
+                tabOut <- data.table::dcast(feasMax, BGC ~ Spp, value.var = "SuitMax")
+            }
         }else{
             id <- as.numeric(input$edaplot_selected)
             idSub <- idDat[ID == id,.(ID,Edatopic)]
@@ -485,8 +517,17 @@ server <- function(input, output) {
     #     })
     # })
     
-    output$info <- renderText({
-        paste0("You have selected: ", labs[as.numeric(input$edaplot_selected)])
+    ##table caption
+    output$tableInfo <- renderText({
+        if(is.null(input$edaplot_selected)){
+            if(input$type == "Climatic Suit"){
+                "Zonal feasibility and maximum feasibility in wetter and drier sites"
+            }else{
+                "Maximum feasibility by subzone"
+            }
+        }else{
+            "Feasibility for each site series overlapping selected edatopic area"
+        }
     })
     
     onStop(function() {
