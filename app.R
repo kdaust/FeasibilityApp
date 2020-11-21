@@ -1,3 +1,6 @@
+###Kiri Daust
+###Nov 2020
+
 library(shiny)
 library(mapdeck)
 library(sf)
@@ -47,18 +50,20 @@ for(nm in c("Conifer_BC","Broadleaf_BC","Conifer_Native","Broadleaf_Native")){
     temp <- treelist[Group == nm, TreeCode]
     sppList[[nm]] <- temp
 }
+bc_init <- st_read(dsn = "BC_Init.gpkg")
+bc_init <- as.data.table(bc_init)
+bc_init[cols, BGC_Col := i.Col, on = "BGC"]
+wna_init <- st_read(dsn = "WNA_Small_Tiled.gpkg")
+wna_init <- as.data.table(wna_init)
+wna_init[cols, BGC_Col := i.Col, on = "BGC"]
+wna_med <- st_read(dsn = "WNA_Tiled_12_BC.gpkg")
+wna_med <- as.data.table(wna_med)
+wna_med[cols, BGC_Col := i.Col, on = "BGC"]
+grd_big <- st_read(dsn = "WNA_GrdID_900.gpkg") %>% st_transform(4326)
+#wna_big <- st_read(dsn = "WNA_Tiled_900.gpkg")
+#wna_big <- as.data.table(wna_big)
+#wna_big[cols, BGC_Col := i.Col, on = "BGC"]
 
-wna_zone <- st_read(dsn = "BC_VSmall.gpkg")
-wna_zone <- st_transform(wna_zone, 4326) %>% st_cast("POLYGON")
-wna_zone <- as.data.table(wna_zone)
-wna_zone[cols, BGC_Col := i.Col, on = "BGC"]
-wna_small <- st_as_sf(wna_zone)
-wna <- st_read(dsn = "Tiled_WNA.gpkg")
-grd <- st_read(dsn = "WNA_TilesOutlines.gpkg")
-
-wna <- st_transform(wna, 4326) %>% st_cast("POLYGON")
-wna <- as.data.table(wna)
-wna[cols, BGC_Col := i.Col, on = "BGC"]
 feas <- fread("Feasibility_v11_22.csv")
 feas <- feas[,.(BGC,SS_NoSpace,Spp,Feasible)]
 setnames(feas, old = "Spp",new = "SppSplit")
@@ -81,46 +86,11 @@ wetOpt <- data.table(Feasible = c(1,2,3), Col = c("#c24f00ff","#cd804bff","#fbbd
 splitOpt <- "#df00a9ff"
 dryOpt <- data.table(Feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8fdbff"))
 
-renderedTiles <- vector("numeric")
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
-
-BCBGCs <- c("BAFAun", "BAFAunp", "BGxh1", "BGxh2", "BGxh3", "BGxw1", "BGxw2", 
-            "BWBSdk", "BWBSmk", "BWBSmw", "BWBSvk", "BWBSwk1", "BWBSwk2", 
-            "BWBSwk3", "CDFmm", "CMAun", "CMAunp", "CMAwh", "CWHdm", "CWHds1", 
-            "CWHds2", "CWHmm1", "CWHmm2", "CWHms1", "CWHms2", "CWHvh1", "CWHvh2", 
-            "CWHvh3", "CWHvm1", "CWHvm1_PR", "CWHvm2", "CWHwh1", "CWHwh2", 
-            "CWHwm", "CWHws1", "CWHws2", "CWHxm1", "CWHxm2", "ESSFdc1", "ESSFdc2", 
-            "ESSFdc3", "ESSFdcp", "ESSFdcw", "ESSFdk1", "ESSFdk2", "ESSFdkp", 
-            "ESSFdkw", "ESSFdv1", "ESSFdv2", "ESSFdvp", "ESSFdvw", "ESSFmc", 
-            "ESSFmcp", "ESSFmh", "ESSFmk", "ESSFmkp", "ESSFmm1", "ESSFmm2", 
-            "ESSFmm3", "ESSFmmp", "ESSFmmw", "ESSFmv1", "ESSFmv2", "ESSFmv3", 
-            "ESSFmv4", "ESSFmvp", "ESSFmw", "ESSFmw1", "ESSFmw2", "ESSFmwp", 
-            "ESSFmww", "ESSFun", "ESSFunp", "ESSFvc", "ESSFvcp", "ESSFvcw", 
-            "ESSFwc2", "ESSFwc3", "ESSFwc4", "ESSFwcp", "ESSFwcw", "ESSFwh1", 
-            "ESSFwh2", "ESSFwh3", "ESSFwk1", "ESSFwk2", "ESSFwm1", "ESSFwm2", 
-            "ESSFwm3", "ESSFwm4", "ESSFwmp", "ESSFwmw", "ESSFwv", "ESSFwvp", 
-            "ESSFxc1", "ESSFxc2", "ESSFxc3", "ESSFxcp", "ESSFxcw", "ESSFxv1", 
-            "ESSFxv2", "ESSFxvp", "ESSFxvw", "ICHdk", "ICHdm", "ICHdw1", 
-            "ICHdw3", "ICHdw4", "ICHmc1", "ICHmc1a", "ICHmc2", "ICHmk1", 
-            "ICHmk2", "ICHmk3", "ICHmk4", "ICHmk5", "ICHmm", "ICHmw1", "ICHmw2", 
-            "ICHmw3", "ICHmw4", "ICHmw5", "ICHvc", "ICHvk1", "ICHvk2", "ICHwc", 
-            "ICHwk1", "ICHwk2", "ICHwk3", "ICHwk4", "ICHxw", "ICHxwa", "IDFdc", 
-            "IDFdk1", "IDFdk2", "IDFdk3", "IDFdk4", "IDFdk5", "IDFdm1", "IDFdm2", 
-            "IDFdw", "IDFmw1", "IDFmw2", "IDFww", "IDFww1", "IDFxc", "IDFxh1", 
-            "IDFxh2", "IDFxh4", "IDFxk", "IDFxm", "IDFxw", "IDFxx2", "IMAun", 
-            "IMAunp", "MHmm1", "MHmm2", "MHmmp", "MHun", "MHunp", "MHwh", 
-            "MHwh1", "MHwhp", "MSdc1", "MSdc2", "MSdc3", "MSdk", "MSdm1", 
-            "MSdm2", "MSdm3", "MSdv", "MSdw", "MSmw1", "MSmw2", "MSxk1", 
-            "MSxk2", "MSxk3", "MSxv", "PPxh1", "PPxh2", "PPxh3", "SBPSdc", 
-            "SBPSmc", "SBPSmk", "SBPSxc", "SBSdh1", "SBSdh2", "SBSdk", "SBSdw1", 
-            "SBSdw2", "SBSdw3", "SBSmc1", "SBSmc2", "SBSmc3", "SBSmh", "SBSmk1", 
-            "SBSmk2", "SBSmm", "SBSmw", "SBSun", "SBSvk", "SBSwk1", "SBSwk2", 
-            "SBSwk3", "SBSwk3a", "SWBmk", "SWBmks", "SWBun", "SWBuns", "SWBvk", 
-            "SWBvks")
 
 # Define UI for application that draws a histogram
 ui <- navbarPage("Species Feasibility",
-                 tabPanel("BC Map",
+                 tabPanel("WNA Map",
                           useShinyalert(),
                           useShinyjs(),
                           fluidPage(
@@ -132,6 +102,11 @@ ui <- navbarPage("Species Feasibility",
                                            Click on a map polygon to show the feasibilities in a table format, which you can update and
                                            submit to the database. To view updated feasibility instead of original feasibility, click the button
                                            (and click again to return to original feasibility)."),
+                                         awesomeRadio("wnaORbc",
+                                                      label = "Select BC or all of WNA",
+                                                      choices = c("BC","WNA"),
+                                                      inline = T,
+                                                      selected = "BC"),
                                          pickerInput("sppPick",
                                                      label = "Select Tree Species",
                                                      choices = sppList,
@@ -169,10 +144,42 @@ ui <- navbarPage("Species Feasibility",
 
 server <- function(input, output) {
     globalFeas <- reactiveValues(dat = feasOrig)
+    globalRendered <- reactiveValues(med = vector("numeric"), big = vector("numeric"))
+    globalPoly <- reactiveValues(Small = bc_init, Big = wna_med[WNABC == "BC",])
     
-    ##base BGC map
+    
+    observeEvent(input$wnaORbc,{
+        if(input$wnaORbc == "WNA"){
+            globalPoly$Small <- wna_init
+            globalPoly$Big <- wna_med
+        }else{
+            globalPoly$Small <- bc_init
+            globalPoly$Big <- wna_med[WNABC == "BC",]
+        }
+    }, priority = 50)
+    
+    ##update gloabl feasibility values
+    observeEvent(input$updatedfeas,{
+        print("Updating feasibility")
+        if(input$updatedfeas %% 2 == 1){
+            newDat <- dbGetQuery(con, "SELECT * FROM edatope_updates")
+            newDat <- as.data.table(newDat)
+            newDat <- newDat[,.(unit,sppsplit,new)]
+            setnames(newDat, c("SS_NoSpace","SppSplit","NewFeas"))
+            temp <- newDat[feasOrig, on = c("SS_NoSpace","SppSplit")]
+            temp[!is.na(NewFeas), Feasible := NewFeas]
+            temp[,NewFeas := NULL]
+            setcolorder(temp, colnames(feasOrig))
+            globalFeas$dat <- temp
+        }else{
+            globalFeas$dat <- feasOrig
+        }
+        
+    }, priority = 20)
+    
+    ##base BGC map -- done
     output$map <- renderMapdeck({
-        dat <- wna_small
+        dat <- st_as_sf(globalPoly$Small)
         mapdeck() %>%
             mapdeck_view(location = c(-124.72,54.56), zoom = 4) %>%
             add_polygon(dat,
@@ -190,71 +197,102 @@ server <- function(input, output) {
         input$edaplot_selected,
         input$updatedfeas)
     },{
-        dat <- mergeSmallDat()
-        print("Rendering map")
-        if(!is.null(dat)){
-            mapdeck_update(map_id = "map") %>%
-                #clear_polygon(layer_id = "zone") %>%
-                add_polygon(dat,
-                            layer_id = "zone",
-                            fill_colour = "Col",
-                            tooltip = "Lab",
-                            auto_highlight = F,
-                            focus_layer = F,
-                            update_view = F
-                )
-        }
-    }, priority = 5)
+    dat <- mergeSmallDat()
+    print("Rendering map")
+    if(!is.null(dat)){
+        mapdeck_update(map_id = "map") %>%
+            add_polygon(dat,
+                        layer_id = "zone",
+                        fill_colour = "Col",
+                        tooltip = "Lab",
+                        auto_highlight = F,
+                        focus_layer = F,
+                        update_view = F
+            )
+    }
+
+}, priority = 15)
+    
+    observeEvent({c(
+        input$map_view_change)
+    },{
+        bounds <- input$map_view_change
+        if(!is.null(bounds)){
+            if(bounds$viewBounds$north - bounds$viewBounds$south > 1 & bounds$viewBounds$north - bounds$viewBounds$south < 2){
+                dat <- mergeSmallDat()
+                print("Rendering map")
+                if(!is.null(dat)){
+                    mapdeck_update(map_id = "map") %>%
+                        add_polygon(dat,
+                                    layer_id = "zone",
+                                    fill_colour = "Col",
+                                    tooltip = "Lab",
+                                    auto_highlight = F,
+                                    focus_layer = F,
+                                    update_view = F
+                        )
+                }
+            }
+        } 
+            
+    }, priority = 15)
+    
+    ##decide which to update
+    observeEvent({c(
+        input$sppPick,
+        input$type,
+        input$edaplot_selected,
+        input$updatedfeas,
+        input$map_view_change)},{
+            
+            bounds <- input$map_view_change
+            if(!is.null(bounds) && bounds$viewBounds$north - bounds$viewBounds$south < 2.5){
+                if(bounds$viewBounds$north - bounds$viewBounds$south > 0.2){
+                    dat <- getTiles_Med()
+                    if(!is.null(dat)){
+                        globalRendered$med <- c(globalRendered$med, unique(dat$ID))
+                        #print("Rendering medium")
+                        mapdeck_update(map_id = "map") %>%
+                            add_polygon(dat,
+                                        layer_id = "tiles_med",
+                                        fill_colour = "Col",
+                                        tooltip = "Lab",
+                                        auto_highlight = F,
+                                        focus_layer = F,
+                                        update_view = F
+                            )
+                    }
+                }else{
+                    # dat <- getTiles_Big()
+                    # if(!is.null(dat)){
+                    #     globalRendered$big <- c(globalRendered$big, unique(dat$ID))
+                    #     #print("Rendering big")
+                    #     mapdeck_update(map_id = "map") %>%
+                    #         add_polygon(dat,
+                    #                     layer_id = "tiles_big",
+                    #                     fill_colour = "Col",
+                    #                     tooltip = "Lab",
+                    #                     auto_highlight = F,
+                    #                     focus_layer = F,
+                    #                     update_view = F
+                    #         )
+                    # }
+                }
+            }
+        })
+
     
     observeEvent({
         c(input$sppPick, 
         input$type,
         input$edaplot_selected,
         input$updatedfeas)},{
+            globalRendered$med <- vector("numeric")
+            globalRendered$big <- vector("numeric")
             mapdeck_update(map_id = "map") %>%
-                clear_polygon(layer_id = "polys")
-        }, priority = 10)
-    
-    observeEvent({
-        c(input$sppPick,
-          input$type,
-          input$map_view_change,
-          input$edaplot_selected,
-          input$updatedfeas)
-    },{
-        dat <- getTiles()
-        if(!is.null(dat)){
-            renderedTiles <- c(renderedTiles, unique(dat$ID))
-            mapdeck_update(map_id = "map") %>%
-                add_polygon(dat,
-                            layer_id = "polys",
-                            fill_colour = "Col",
-                            tooltip = "Lab",
-                            auto_highlight = F,
-                            focus_layer = F,
-                            update_view = F
-                )
-        }
-        
-    }, priority = 2)
-    
-    observeEvent(input$updatedfeas,{
-        print("Updating feasibility")
-        if(input$updatedfeas %% 2 == 1){
-            newDat <- dbGetQuery(con, "SELECT * FROM edatope_updates")
-            newDat <- as.data.table(newDat)
-            newDat <- newDat[,.(unit,sppsplit,new)]
-            setnames(newDat, c("SS_NoSpace","SppSplit","NewFeas"))
-            temp <- newDat[feasOrig, on = c("SS_NoSpace","SppSplit")]
-            temp[!is.na(NewFeas), Feasible := NewFeas]
-            temp[,NewFeas := NULL]
-            setcolorder(temp, colnames(feasOrig))
-            globalFeas$dat <- temp
-        }else{
-            globalFeas$dat <- feasOrig
-        }
-
-    }, priority = 20)
+                clear_polygon(layer_id = "tiles_big") %>%
+                clear_polygon(layer_id = "tiles_med")
+        }, priority = 25)
     
     # observeEvent(input$edaplot_selected,{
     #     if(is.null(input$edaplot_selected)){
@@ -267,9 +305,16 @@ server <- function(input, output) {
     ###calculate climatic suitability colours
     prepClimSuit <- reactive({
         feas <- globalFeas$dat
-        feas <- feas[BGC %in% BCBGCs,]
         tempFeas <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),]
         minDist <- tempFeas[,.SD[Feasible == min(Feasible, na.rm = T)],by = .(BGC)]
+        abUnits <- minDist[grep("[[:alpha:]] */[[:alpha:]]+$",SS_NoSpace),]
+        noAb <- minDist[!grepl("[[:alpha:]] */[[:alpha:]]+$",SS_NoSpace),]
+        abUnits <- eda[abUnits, on = "SS_NoSpace"]
+        abUnits <- abUnits[,.(Temp = if(any(grepl("C4",Edatopic))) paste0(SS_NoSpace,"_01") else SS_NoSpace, Feasible = Feasible[1]),
+                           by = .(BGC,SS_NoSpace,SppSplit,Spp)]
+        abUnits[,SS_NoSpace := NULL]
+        setnames(abUnits,old = "Temp",new = "SS_NoSpace")
+        minDist <- rbind(noAb,abUnits)
         minDist[,ID := if(any(grepl("01", SS_NoSpace)) & Feasible[1] == 1) T else F, by = .(BGC)]
         green <- minDist[(ID),]
         green <- green[,.(Col = zonalOpt), by = .(BGC)]
@@ -336,27 +381,17 @@ server <- function(input, output) {
         feasSum[,.(BGC,Col,Lab)]
     })
     
-    ##join colours to big map
-    mergeBigDat <- reactive({
-        if(is.null(input$edaplot_selected)){
-            feasDat <- prepDatSimple()
-        }else{
-            feasDat <- prepEdaDat()
-        }
-        temp <- wna[feasDat, on = "BGC"]
-        temp <- temp[!is.na(BGC_Col),]
-        st_as_sf(temp)
-    })
-    
     ##join colours to small map
     mergeSmallDat <- reactive({
+        #browser()
         if(is.null(input$edaplot_selected)){
             feasDat <- prepDatSimple()
         }else{
             feasDat <- prepEdaDat()
         }
-        temp <- wna_zone[feasDat, on = "BGC"]
+        temp <- globalPoly$Small[feasDat, on = "BGC"]
         temp <- temp[!is.na(BGC_Col),]
+        temp <- temp[!ID %in% c(globalRendered$med,globalRendered$big),]
         if(nrow(temp) == 0){
             shinyalert("Oh oh!","There are no suitable locations for this selection!", type = "error")
             return(NULL)
@@ -366,31 +401,65 @@ server <- function(input, output) {
         
     })
     
-    ##extract tiles based on current view
-    getTiles <- reactive({
-        bounds <- input$map_view_change
-        if(!is.null(bounds) && bounds$viewBounds$north - bounds$viewBounds$south < 1.2){
-            dat <- mergeBigDat()
-            bnds <- st_bbox(c(xmin = bounds$viewBounds$west, xmax = bounds$viewBounds$east, 
-                              ymax = bounds$viewBounds$north,ymin = bounds$viewBounds$south), crs = st_crs(4326))
-            bnds <- st_as_sfc(bnds)
-            t1 <- st_intersects(grd, bnds)
-            t1 <- as.data.frame(t1)
-            dat <- dat[dat$ID %in% t1$row.id,]
-            dat <- dat[!dat$ID %in% renderedTiles,]
-            dat <- dat[!is.na(dat$Lab),]
-            if(nrow(dat) < 1) dat <- NULL
-            dat
+    ##join colours to big map
+    mergeMedDat <- function(tid){
+        if(is.null(input$edaplot_selected)){
+            feasDat <- prepDatSimple()
         }else{
-            NULL
+            feasDat <- prepEdaDat()
         }
+        temp <- globalPoly$Big[ID %in% tid,]
+        temp <- temp[feasDat, on = "BGC"]
+        temp <- temp[!is.na(BGC_Col),]
+        st_as_sf(temp)
+    }
+    
+    ##extract tiles based on current view
+    getTiles_Med <- reactive({
+        bounds <- input$map_view_change
+        bnds <- st_bbox(c(xmin = bounds$viewBounds$west, xmax = bounds$viewBounds$east, 
+                          ymax = bounds$viewBounds$north,ymin = bounds$viewBounds$south), crs = st_crs(4326))
+        bnds <- st_as_sfc(bnds)
+        t1 <- st_intersects(grd_big, bnds) %>% as.data.frame()
+        ids <- unique(c(t1$row.id,globalRendered$med))
+        dat <- mergeMedDat(tid = ids)
+        if(nrow(dat) < 1) dat <- NULL
+        dat
     })
+    
+    # #join colours to big map
+    # mergeBigDat <- function(tid){
+    #     if(is.null(input$edaplot_selected)){
+    #         feasDat <- prepDatSimple()
+    #     }else{
+    #         feasDat <- prepEdaDat()
+    #     }
+    #     temp <- wna_big[ID %in% tid,]
+    #     temp <- temp[feasDat, on = "BGC"]
+    #     temp <- temp[!is.na(BGC_Col),]
+    #     st_as_sf(temp)
+    # }
+    # 
+    # ##extract tiles based on current view
+    # getTiles_Big <- reactive({
+    #     bounds <- input$map_view_change
+    #     bnds <- st_bbox(c(xmin = bounds$viewBounds$west, xmax = bounds$viewBounds$east, 
+    #                       ymax = bounds$viewBounds$north,ymin = bounds$viewBounds$south), crs = st_crs(4326))
+    #     bnds <- st_as_sfc(bnds)
+    #     t1 <- st_intersects(grd_big, bnds) %>% as.data.frame()
+    #     ids <- unique(c(t1$row.id,globalRendered$big))
+    #     dat <- mergeBigDat(tid = ids)
+    #     if(nrow(dat) < 1) dat <- NULL
+    #     dat
+    # })
     
     ##prepare suitability table when polygon clicked
     prepTable <- reactive({
         event <- input$map_polygon_click
-        temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?",event))
+        temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
         unit <- gsub("tooltip.{3}","",temp)
+        #browser()
+        print(unit)
         feas <- globalFeas$dat
         idx_row <- NULL
         idx_col <- NULL
@@ -400,9 +469,8 @@ server <- function(input, output) {
                 tempEda <- eda[tempFeas, on = "SS_NoSpace"]
                 tempEda <- tempEda[!is.na(SMR),]
                 tempEda <- tempEda[,.(AvgSMR = mean(SMR)), by = .(SS_NoSpace,Feasible,SppSplit)]
-                zonalSMR <- tempEda[grep("01",SS_NoSpace),AvgSMR][1]
-                tempEda[,SSType := fifelse(AvgSMR == zonalSMR,"Zonal",
-                                          fifelse(AvgSMR < zonalSMR,"Dry","Wet"))]
+                tempEda[,SSType := fifelse(AvgSMR < 3.5,"Dry",
+                                           fifelse(AvgSMR > 4.1,"Wet","Zonal"))]
                 tabOut <- dcast(tempEda, SSType ~ SppSplit, value.var = "Feasible", fun.aggregate = min)
                 tabOut[tabOut == 0] <- NA
             }else{
@@ -537,31 +605,3 @@ server <- function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
-
-
-# output$map <- renderLeaflet({
-#     dat <- st_as_sf(wna)
-#     
-#     leaflet(data = dat) %>%
-#         addPolygons(data = dat,
-#                     layerId = ~ BGC,
-#                     label = ~ BGC,
-#                     weight = 1)
-# })
-# 
-# observeEvent({input$sppPick
-#     input$type},
-#     {dat2 <- prepDat()
-#     leafletProxy("map",data = dat2) %>%
-#         setShapeStyle(layerId = ~BGC, fillColor = dat2[["Col"]], color = dat2[["Col"]])
-#     })
-
-# ##leaflet glify
-# output$map2 <- renderLeaflet({
-#     dat <- prepDat()
-#     leaflet(data = dat) %>%
-#         addGlPolygons(data = dat,
-#                     layerId = ~BGC,
-#                     color = dat$Col)
-# })
