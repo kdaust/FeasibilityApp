@@ -86,6 +86,32 @@ wetOpt <- data.table(Feasible = c(1,2,3), Col = c("#c24f00ff","#cd804bff","#fbbd
 splitOpt <- "#df00a9ff"
 dryOpt <- data.table(Feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8fdbff"))
 
+##legends
+leg <- legend_element(
+    variables = c("No Restrictions","Dry Limited","Wet Limited","Split Feasibility")
+    , colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt)
+    , colour_type = "fill"
+    , variable_type = "category"
+    , title = "Climatic Feasibility"
+)
+climaticLeg <- mapdeck_legend(leg)
+leg <- legend_element(
+    variables = c("Feas 1","Feas 2","Feas 3")
+    , colours = suitcols$Col
+    , colour_type = "fill"
+    , variable_type = "category"
+    , title = "Max Feasibility"
+)
+maxSuitLeg <- mapdeck_legend(leg)
+leg <- legend_element(
+    variables = c("Min Feasibility","Max Feasibility")
+    , colours = c("#443e3dFF","#a29f9eFF")
+    , colour_type = "fill"
+    , variable_type = "gradient",
+    title = "Edatopic Feasibility"
+)
+edaLeg <- mapdeck_legend(leg)
+
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
 
 # Define UI for application that draws a histogram
@@ -107,10 +133,11 @@ ui <- navbarPage("Species Feasibility",
                                                       choices = c("BC","WNA"),
                                                       inline = T,
                                                       selected = "BC"),
+                                         actionBttn("bgcLayer",label = "Toggle BGC Map"),
                                          pickerInput("sppPick",
                                                      label = "Select Tree Species",
                                                      choices = sppList,
-                                                     selected = "Pl"),
+                                                     selected = "Pl (All)"),
                                          awesomeRadio("type",
                                                       label = "Select Summary by Subzone",
                                                       choices = c("P/A","Max Suit","Climatic Suit"),
@@ -146,6 +173,7 @@ server <- function(input, output) {
     globalFeas <- reactiveValues(dat = feasOrig)
     globalRendered <- reactiveValues(med = vector("numeric"), big = vector("numeric"))
     globalPoly <- reactiveValues(Small = bc_init, Big = wna_med[WNABC == "BC",])
+    globalLeg <- reactiveValues(Legend = climaticLeg)
     
     
     observeEvent(input$wnaORbc,{
@@ -191,11 +219,31 @@ server <- function(input, output) {
                         update_view = F)
     })
     
+    observeEvent(input$bgcLayer,{
+        if(input$bgcLayer %% 2 == 1){
+            print("removing bgc")
+            mapdeck_update(map_id = "map") %>%
+                clear_polygon(layer_id = "bgcmap")
+        }else{
+            dat <- st_as_sf(globalPoly$Small)
+            mapdeck_update(map_id = "map") %>%
+                mapdeck_view(location = c(-124.72,54.56), zoom = 4) %>%
+                add_polygon(dat,
+                            layer_id = "bgcmap",
+                            fill_colour = "BGC_Col",
+                            tooltip = "BGC",
+                            auto_highlight = F,
+                            focus_layer = F,
+                            update_view = F)
+        }
+    })
+    
     observeEvent({c(
         input$sppPick,
         input$type,
         input$edaplot_selected,
-        input$updatedfeas)
+        input$updatedfeas,
+        input$wnaORbc)
     },{
     dat <- mergeSmallDat()
     print("Rendering map")
@@ -207,7 +255,8 @@ server <- function(input, output) {
                         tooltip = "Lab",
                         auto_highlight = F,
                         focus_layer = F,
-                        update_view = F
+                        update_view = F,
+                        legend = globalLeg$Legend
             )
     }
 
@@ -305,7 +354,7 @@ server <- function(input, output) {
     ###calculate climatic suitability colours
     prepClimSuit <- reactive({
         feas <- globalFeas$dat
-        tempFeas <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),]
+        tempFeas <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3),]
         minDist <- tempFeas[,.SD[Feasible == min(Feasible, na.rm = T)],by = .(BGC)]
         abUnits <- minDist[grep("[[:alpha:]] */[[:alpha:]]+$",SS_NoSpace),]
         noAb <- minDist[!grepl("[[:alpha:]] */[[:alpha:]]+$",SS_NoSpace),]
@@ -346,21 +395,44 @@ server <- function(input, output) {
     ##Prepare BGC colour table for non-edatopic
     prepDatSimple <- reactive({
         feas <- globalFeas$dat
-        feasMax <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),
+        feasMax <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3),
                         .(SuitMax = min(Feasible)), by = .(BGC,SppSplit)]
         if(input$type == "P/A"){
             if(length(unique(feasMax$SppSplit)) > 1){
-                feasMax[,SppSplit := as.numeric(as.factor(SppSplit))]
-                tempCol <- grRamp(rescale(feasMax$SppSplit,to = c(0,0.6)))
+                feasMax[,SppNum := as.numeric(as.factor(SppSplit))]
+                tempCol <- grRamp(rescale(feasMax$SppNum,to = c(0,0.6)))
                 feasMax[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
+                temp <- unique(feasMax[,.(SppSplit,Col)])
+                
+                leg <- legend_element(
+                    variables = temp$SppSplit
+                    , colours = temp$Col
+                    , colour_type = "fill"
+                    , variable_type = "category",
+                    title = "Presence/Absence"
+                )
+                PALeg <- mapdeck_legend(leg)
+                globalLeg$Legend <- PALeg
             }else{
                 feasMax[,Col := "#443e3dFF"]
+                
+                leg <- legend_element(
+                    variables = feasMax$SppSplit[1]
+                    , colours = "#443e3dFF"
+                    , colour_type = "fill"
+                    , variable_type = "category",
+                    title = "Presence/Absence"
+                )
+                PALeg <- mapdeck_legend(leg)
+                globalLeg$Legend <- PALeg
             }
             
         }else if(input$type == "Max Suit"){
             feasMax[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
+            globalLeg$Legend <- maxSuitLeg
         }else{
             feasMax <- prepClimSuit()
+            globalLeg$Legend <- climaticLeg
         }
         feasMax[,Lab := BGC]
         feasMax[,.(BGC,Col,Lab)]
@@ -369,10 +441,11 @@ server <- function(input, output) {
     ##Prepare BGC colours for edatopic option
     prepEdaDat <- reactive({
         feas <- globalFeas$dat
+        globalLeg$Legend <- edaLeg
         id <- as.numeric(input$edaplot_selected)
         idSub <- idDat[ID == id,.(ID,Edatopic)]
         edaSub <- eda[idSub, on = "Edatopic"]
-        feasSub <- feas[Spp == input$sppPick & Feasible %in% c(1,2,3),]
+        feasSub <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3),]
         feasSub <- feasSub[SS_NoSpace %chin% edaSub$SS_NoSpace,]
         feasSub[,Lab := paste0(SS_NoSpace,": ", Feasible)]
         feasSum <- feasSub[,.(FeasVal = mean(Feasible), Lab = paste(Lab, collapse = "<br>")), by = BGC]
