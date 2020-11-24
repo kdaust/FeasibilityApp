@@ -40,7 +40,9 @@ cols <- fread("WNAv12_HexColours.csv")
 setnames(cols, c("BGC","Col"))
 alpha <- "4D"
 cols[,Col := paste0(Col,alpha)]
-grRamp <- colorRamp(c("#443e3dFF","#a29f9eFF"),alpha = T) ##colour ramp for gray values
+edaMaxCol <- "#2fa631ff"
+edaMinCol <- "#c91a1aff"
+grRamp <- colorRamp(c(edaMaxCol,edaMinCol),alpha = T) ##colour ramp for gray values
 
 ##setup species picker
 treelist <- fread("Tree_List_2020.csv")
@@ -78,6 +80,8 @@ feasOrig <- feas
 eda <- fread("Edatopic_v11_20.csv")
 eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
 eda[,SMR := as.numeric(gsub("[[:alpha:]]","", Edatopic))]
+treeLocs <- fread("TreeSppLocations.csv")
+treeLocs <- treeLocs[,.(Spp,Latitude,Longitude,`Plot Number`)]
 ##max suitability colours
 suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3dFF","#736e6eFF","#a29f9eFF"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
 ##climatic suitability colours
@@ -104,8 +108,8 @@ leg <- legend_element(
 )
 maxSuitLeg <- mapdeck_legend(leg)
 leg <- legend_element(
-    variables = c("Min Feasibility","Max Feasibility")
-    , colours = c("#443e3dFF","#a29f9eFF")
+    variables = c("Low Feasibility","Best Feasibility")
+    , colours = c(edaMinCol,edaMaxCol)
     , colour_type = "fill"
     , variable_type = "gradient",
     title = "Edatopic Feasibility"
@@ -128,21 +132,26 @@ ui <- navbarPage("Species Feasibility",
                                            Click on a map polygon to show the feasibilities in a table format, which you can update and
                                            submit to the database. To view updated feasibility instead of original feasibility, click the button
                                            (and click again to return to original feasibility)."),
+                                         br(),
+                                         h2("Options"),
                                          awesomeRadio("wnaORbc",
                                                       label = "Select BC or all of WNA",
                                                       choices = c("BC","WNA"),
                                                       inline = T,
                                                       selected = "BC"),
-                                         actionBttn("bgcLayer",label = "Toggle BGC Map"),
                                          pickerInput("sppPick",
                                                      label = "Select Tree Species",
                                                      choices = sppList,
                                                      selected = "Pl (All)"),
+                                         switchInput("bgcLayer",label = "Show BGC",value = T,labelWidth = "80px"),
+                                         switchInput("updatedfeas","Updated Feas",value = F, labelWidth = "100px"),
+                                         switchInput("showtrees",label = "Show Plots", value = F, labelWidth = "100px"),
+                                         br(),
+                                         h2("Summary type"),
                                          awesomeRadio("type",
                                                       label = "Select Summary by Subzone",
-                                                      choices = c("P/A","Max Suit","Climatic Suit"),
+                                                      choices = c("Climatic Suit","P/A"),
                                                       selected =  "Climatic Suit"),
-                                         actionBttn("updatedfeas","Show Updated Feasibility Values"),
                                          h4("Or Select Edatopic Space: \n"),
                                          girafeOutput("edaplot", width = "400px")
                                   ),
@@ -159,9 +168,9 @@ ui <- navbarPage("Species Feasibility",
                                          textOutput("tableInfo"),
                                          fluidRow(
                                              rHandsontableOutput("hot"),
-                                             actionBttn("submitdat", label = "Submit!"),
-                                             actionBttn("addspp","Add Current Species"),
-                                             actionBttn("removespp","Remove Species")
+                                             hidden(actionBttn("submitdat", label = "Submit!")),
+                                             hidden(actionBttn("addspp","Add Current Species")),
+                                             hidden(actionBttn("removespp","Remove Species"))
                                          )
                                   )
                               
@@ -177,6 +186,40 @@ server <- function(input, output) {
     globalPoly <- reactiveValues(Small = bc_init, Big = wna_med[WNABC == "BC",])
     globalLeg <- reactiveValues(Legend = climaticLeg)
     
+    testCanAdd <- function(){
+        if(input$type == "P/A" & is.null(input$edaplot_selected)){
+            event <- input$map_polygon_click
+            if(!is.null(event)){
+                temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
+                unit <- gsub("tooltip.{3}","",temp)
+                feas <- globalFeas$dat
+                spp <- unique(feas[BGC == unit,Spp])
+                if(!substr(input$sppPick,1,2) %in% spp){
+                    return(TRUE)
+                }
+            }
+        }
+        return(FALSE)
+    }
+    
+    testCanRemove <- function(){
+        if(input$type == "P/A" & is.null(input$edaplot_selected)){
+            event <- input$map_polygon_click
+            if(!is.null(event)){
+                return(TRUE)
+            }
+        }
+        return(FALSE)
+    }
+    
+    observeEvent({c(input$type,input$map_polygon_click,input$edaplot_selected)},{
+        toggle(id = "addspp", condition = testCanAdd())
+        toggle(id = "removespp", condition = testCanRemove())
+    })
+    
+    observe({
+        toggle(id = "submitdat", condition = !is.null(input$edaplot_selected))
+    })
     
     observeEvent(input$wnaORbc,{
         if(input$wnaORbc == "WNA"){
@@ -191,7 +234,7 @@ server <- function(input, output) {
     ##update global feasibility values
     observeEvent(input$updatedfeas,{
         print("Updating feasibility")
-        if(input$updatedfeas %% 2 == 1){
+        if(input$updatedfeas){
             newDat <- dbGetQuery(con, "SELECT * FROM edatope_updates")
             newDat <- as.data.table(newDat)
             newDat <- newDat[,.(unit,sppsplit,new)]
@@ -228,7 +271,7 @@ server <- function(input, output) {
     })
     
     observeEvent(input$bgcLayer,{
-        if(input$bgcLayer %% 2 == 1){
+        if(!input$bgcLayer){
             print("removing bgc")
             dat <- st_as_sf(globalPoly$Small)
             mapdeck_update(map_id = "map") %>%
@@ -251,6 +294,29 @@ server <- function(input, output) {
                             auto_highlight = F,
                             focus_layer = F,
                             update_view = F)
+        }
+    })
+    
+    observeEvent(input$showtrees,{
+        if(input$showtrees){
+            dat <- treeLocs[Spp == substr(input$sppPick,1,2),]
+            if(nrow(dat) > 1){
+                mapdeck_update(map_id = "map") %>%
+                    add_scatterplot(data = dat,
+                                    layer_id = "tree_points",
+                                    lon = "Longitude",
+                                    lat = "Latitude",
+                                    fill_colour = "black",
+                                    radius = 1,
+                                    radius_min_pixels = 5,
+                                    radius_max_pixels = 10,
+                                    focus_layer = F,
+                                    update_view = F)
+            }
+        }else{
+            mapdeck_update(map_id = "map") %>%
+                clear_scatterplot(layer_id = "tree_points") %>%
+                clear_scatterplot(layer_id = "tree_points2")
         }
     })
     
@@ -326,6 +392,22 @@ server <- function(input, output) {
                                         focus_layer = F,
                                         update_view = F
                             )
+                        if(input$showtrees){
+                            dat <- treeLocs[Spp == substr(input$sppPick,1,2),]
+                            if(nrow(dat) > 1){
+                                mapdeck_update(map_id = "map") %>%
+                                    add_scatterplot(data = dat,
+                                                    layer_id = "tree_points2",
+                                                    lon = "Longitude",
+                                                    lat = "Latitude",
+                                                    fill_colour = "black",
+                                                    radius = 1,
+                                                    radius_min_pixels = 5,
+                                                    radius_max_pixels = 10,
+                                                    focus_layer = F,
+                                                    update_view = F)
+                            }
+                        }
                     }
                 }else{
                     # dat <- getTiles_Big()
@@ -591,20 +673,29 @@ server <- function(input, output) {
             dat <- feas[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
             tabOut <- data.table::dcast(dat, SS_NoSpace ~ SppSplit, value.var = "Feasible", fun.aggregate = mean)
             setnames(tabOut, old = c("SS_NoSpace"), new = c("BGC"))
-            if(input$updatedfeas %% 2 == 1){
+            if(input$updatedfeas){
                 dat2 <- feasOrig[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
                 dat2 <- dat2[,.(SS_NoSpace,SppSplit,Feasible)]
                 setnames(dat2, old = "Feasible", new = "FeasOld")
                 comp <- merge(dat,dat2,on = c("SS_NoSpace","SppSplit"),all = T)
                 comp[,Same := (Feasible == FeasOld) & !is.na(Feasible) & !is.na(FeasOld)]
-                tabOrig <- data.table::dcast(comp, SS_NoSpace ~ SppSplit, value.var = "Same")
+                tabOrig <- data.table::dcast(comp, SS_NoSpace ~ SppSplit, value.var = "Same",fun.aggregate = function(x){x[1]})
                 idx <- which(tabOrig == F, arr.ind = T)
                 idx_row <- unname(idx[,1] - 1)
                 idx_col <- unname(idx[,2] - 1)
             }
             
         }
-        list(dat = tabOut, rIdx = idx_row, cIdx = idx_col)
+        spp <- colnames(tabOut)
+        spp[spp %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss")] <- "Sx"
+        spp <- substr(spp, 1,2)
+        sppCurr <- substr(input$sppPick,1,2)
+        if(sppCurr %in% spp){
+            sppIdx <- which(spp == sppCurr) - 1
+        }else{
+            sppIdx <- NULL
+        }
+        list(dat = tabOut, rIdx = idx_row, cIdx = idx_col, sppCol = sppIdx)
     })
     
     ##render suitability table, colour updated cells
@@ -616,7 +707,8 @@ server <- function(input, output) {
             output$hot <- renderRHandsontable({
                 temp <- prepTable()
                 dat <- temp$dat
-                rhandsontable(data = dat,col_highlight = temp$cIdx, row_highlight = temp$rIdx) %>%
+                #browser()
+                rhandsontable(data = dat,col_highlight = temp$cIdx, row_highlight = temp$rIdx, spp_highlight = temp$sppCol) %>%
                     hot_cols(renderer = "
                 function(instance, td, row, col, prop, value, cellProperties) {
                 Handsontable.renderers.NumericRenderer.apply(this, arguments);
@@ -625,12 +717,17 @@ server <- function(input, output) {
                     hcols = hcols instanceof Array ? hcols : [hcols]
                     hrows = instance.params.row_highlight
                     hrows = hrows instanceof Array ? hrows : [hrows]
+                    hspp = instance.params.spp_highlight
+                    hspp = hspp instanceof Array ? hspp : [hspp]
                 }
                 
                 var i;
                 for(i = 0; i < 100; i++){
                     if (instance.params && (col === hcols[i] && row === hrows[i])) {
-                      td.style.background = 'pink';
+                      td.style.background = 'yellow';
+                    }
+                    if(instance.params && col === hspp[i]){
+                        td.style.background = 'lightgreen';
                     }
                 }
                     
