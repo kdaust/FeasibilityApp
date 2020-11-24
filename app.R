@@ -88,8 +88,8 @@ dryOpt <- data.table(Feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8f
 
 ##legends
 leg <- legend_element(
-    variables = c("No Restrictions","Dry Limited","Wet Limited","Split Feasibility")
-    , colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt)
+    variables = c("No Restrictions","Dry Limited","Wet Limited","Split Feasibility","Added","Removed")
+    , colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff")
     , colour_type = "fill"
     , variable_type = "category"
     , title = "Climatic Feasibility"
@@ -142,6 +142,7 @@ ui <- navbarPage("Species Feasibility",
                                                       label = "Select Summary by Subzone",
                                                       choices = c("P/A","Max Suit","Climatic Suit"),
                                                       selected =  "Climatic Suit"),
+                                         actionBttn("updatedfeas","Show Updated Feasibility Values"),
                                          h4("Or Select Edatopic Space: \n"),
                                          girafeOutput("edaplot", width = "400px")
                                   ),
@@ -159,7 +160,8 @@ ui <- navbarPage("Species Feasibility",
                                          fluidRow(
                                              rHandsontableOutput("hot"),
                                              actionBttn("submitdat", label = "Submit!"),
-                                             actionBttn("updatedfeas","Show Updated Feasibility Values")
+                                             actionBttn("addspp","Add Current Species"),
+                                             actionBttn("removespp","Remove Species")
                                          )
                                   )
                               
@@ -186,7 +188,7 @@ server <- function(input, output) {
         }
     }, priority = 50)
     
-    ##update gloabl feasibility values
+    ##update global feasibility values
     observeEvent(input$updatedfeas,{
         print("Updating feasibility")
         if(input$updatedfeas %% 2 == 1){
@@ -194,9 +196,15 @@ server <- function(input, output) {
             newDat <- as.data.table(newDat)
             newDat <- newDat[,.(unit,sppsplit,new)]
             setnames(newDat, c("SS_NoSpace","SppSplit","NewFeas"))
-            temp <- newDat[feasOrig, on = c("SS_NoSpace","SppSplit")]
+            temp <- merge(feasOrig,newDat, by = c("SS_NoSpace","SppSplit"), all = T)
             temp[!is.na(NewFeas), Feasible := NewFeas]
             temp[,NewFeas := NULL]
+            temp[is.na(Spp),Spp := SppSplit]
+            temp[Spp %in% c("Fdi","Fdc"),Spp := "Fd"]
+            temp[Spp %in% c("Pli","Plc"),Spp := "Pl"]
+            temp[Spp %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss"),Spp := "Sx"]
+            temp[Spp %in% c("Pyi","Pyc"),Spp := "Py"]
+            temp[is.na(BGC),BGC := gsub("/.*","",SS_NoSpace)]
             setcolorder(temp, colnames(feasOrig))
             globalFeas$dat <- temp
         }else{
@@ -222,8 +230,16 @@ server <- function(input, output) {
     observeEvent(input$bgcLayer,{
         if(input$bgcLayer %% 2 == 1){
             print("removing bgc")
+            dat <- st_as_sf(globalPoly$Small)
             mapdeck_update(map_id = "map") %>%
-                clear_polygon(layer_id = "bgcmap")
+                add_polygon(dat,
+                            layer_id = "bgcmap",
+                            fill_colour = "purple",
+                            fill_opacity = 0,
+                            tooltip = "BGC",
+                            auto_highlight = F,
+                            focus_layer = F,
+                            update_view = F)
         }else{
             dat <- st_as_sf(globalPoly$Small)
             mapdeck_update(map_id = "map") %>%
@@ -335,7 +351,8 @@ server <- function(input, output) {
         c(input$sppPick, 
         input$type,
         input$edaplot_selected,
-        input$updatedfeas)},{
+        input$updatedfeas,
+        input$wnaORbc)},{
             globalRendered$med <- vector("numeric")
             globalRendered$big <- vector("numeric")
             mapdeck_update(map_id = "map") %>%
@@ -389,13 +406,22 @@ server <- function(input, output) {
         red[,Feasible := NULL]
         climSuit <- rbind(green,blue,red,minEda)
         climSuit <- climSuit[!is.na(BGC),]
+        
+        tf2 <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(4,5),
+                    .(SuitMax = min(Feasible)), by = .(BGC)]
+        if(nrow(tf2) > 0){
+            tf2[SuitMax == 4,Col := "#fbff00ff"]
+            tf2[SuitMax == 5,Col := "#8300ffff"]
+            tf2 <- tf2[,.(BGC,Col)]
+            climSuit <- rbind(climSuit, tf2)
+        }
         return(climSuit)
     })
     
     ##Prepare BGC colour table for non-edatopic
     prepDatSimple <- reactive({
         feas <- globalFeas$dat
-        feasMax <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3),
+        feasMax <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3,4,5),
                         .(SuitMax = min(Feasible)), by = .(BGC,SppSplit)]
         if(input$type == "P/A"){
             if(length(unique(feasMax$SppSplit)) > 1){
@@ -405,20 +431,25 @@ server <- function(input, output) {
                 temp <- unique(feasMax[,.(SppSplit,Col)])
                 
                 leg <- legend_element(
-                    variables = temp$SppSplit
-                    , colours = temp$Col
+                    variables = c(temp$SppSplit,"Added","Removed")
+                    , colours = c(temp$Col,"#fbff00ff","#8300ffff")
                     , colour_type = "fill"
                     , variable_type = "category",
                     title = "Presence/Absence"
                 )
                 PALeg <- mapdeck_legend(leg)
                 globalLeg$Legend <- PALeg
+                
+                feasMax[SuitMax == 4,Col := "#fbff00ff"]
+                feasMax[SuitMax == 5,Col := "#8300ffff"]
             }else{
                 feasMax[,Col := "#443e3dFF"]
+                feasMax[SuitMax == 4,Col := "#fbff00ff"]
+                feasMax[SuitMax == 5,Col := "#8300ffff"]
                 
                 leg <- legend_element(
-                    variables = feasMax$SppSplit[1]
-                    , colours = "#443e3dFF"
+                    variables = c(feasMax$SppSplit[1],"Added","Removed")
+                    , colours = c("#443e3dFF","#fbff00ff","#8300ffff")
                     , colour_type = "fill"
                     , variable_type = "category",
                     title = "Presence/Absence"
@@ -464,11 +495,11 @@ server <- function(input, output) {
         }
         temp <- globalPoly$Small[feasDat, on = "BGC"]
         temp <- temp[!is.na(BGC_Col),]
-        temp <- temp[!ID %in% c(globalRendered$med,globalRendered$big),]
         if(nrow(temp) == 0){
             shinyalert("Oh oh!","There are no suitable locations for this selection!", type = "error")
             return(NULL)
         }else{
+            temp <- temp[!ID %in% c(globalRendered$med,globalRendered$big),]
             st_as_sf(temp)
         }
         
@@ -547,10 +578,10 @@ server <- function(input, output) {
                 tabOut <- dcast(tempEda, SSType ~ SppSplit, value.var = "Feasible", fun.aggregate = min)
                 tabOut[tabOut == 0] <- NA
             }else{
-                feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3),
-                                .(SuitMax = min(Feasible)), by = .(Spp,BGC)]
-                feasMax <- feasMax[Spp != "X",]
-                tabOut <- data.table::dcast(feasMax, BGC ~ Spp, value.var = "SuitMax")
+                feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3,4),
+                                .(SuitMax = min(Feasible)), by = .(SppSplit,BGC)]
+                feasMax <- feasMax[SppSplit != "X",]
+                tabOut <- data.table::dcast(feasMax, BGC ~ SppSplit, value.var = "SuitMax")
             }
         }else{
             id <- as.numeric(input$edaplot_selected)
@@ -561,10 +592,13 @@ server <- function(input, output) {
             tabOut <- data.table::dcast(dat, SS_NoSpace ~ SppSplit, value.var = "Feasible", fun.aggregate = mean)
             setnames(tabOut, old = c("SS_NoSpace"), new = c("BGC"))
             if(input$updatedfeas %% 2 == 1){
-                dat <- feasOrig[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
-                tabOrig <- data.table::dcast(dat, SS_NoSpace ~ SppSplit, value.var = "Feasible")
-                setnames(tabOrig, old = c("SS_NoSpace"), new = c("BGC"))
-                idx <- which(tabOut != tabOrig, arr.ind = T)
+                dat2 <- feasOrig[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
+                dat2 <- dat2[,.(SS_NoSpace,SppSplit,Feasible)]
+                setnames(dat2, old = "Feasible", new = "FeasOld")
+                comp <- merge(dat,dat2,on = c("SS_NoSpace","SppSplit"),all = T)
+                comp[,Same := (Feasible == FeasOld) & !is.na(Feasible) & !is.na(FeasOld)]
+                tabOrig <- data.table::dcast(comp, SS_NoSpace ~ SppSplit, value.var = "Same")
+                idx <- which(tabOrig == F, arr.ind = T)
                 idx_row <- unname(idx[,1] - 1)
                 idx_col <- unname(idx[,2] - 1)
             }
@@ -625,6 +659,98 @@ server <- function(input, output) {
             datComb[,Modifier := nme]
             setnames(datComb, c("bgc","unit","sppsplit","feasible","new","modifier"))
             dbWriteTable(con, name = "edatope_updates", value = datComb, row.names = F, append = T)
+            shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
+        }
+    }
+    
+    output$hot_add <- renderRHandsontable({
+        if(!is.null(input$map_polygon_click)){
+            spp <- substr(input$sppPick,1,2)
+            spp2 <- unique(feasOrig[Spp == spp, SppSplit])
+            event <- input$map_polygon_click
+            temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
+            unit <- gsub("tooltip.{3}","",temp)
+            edaSub <- unique(eda[BGC == unit,.(BGC,SS_NoSpace)])
+            temp <- as.data.table(expand.grid(edaSub$SS_NoSpace,spp2))
+            temp[,Val := NA_integer_]
+            outTab <- dcast(temp, Var1 ~ Var2, value.var = "Val")
+            setnames(outTab, old = "Var1",new = "SS_NoSpace")
+            rhandsontable(data = outTab)
+        }
+    })
+    
+    observeEvent(input$addspp,{
+        shinyalert(html = T,
+                   text = tagList(
+                       h4("Add species by site unit, then click submit"),
+                       rHandsontableOutput("hot_add"),
+                       textInput("addsppMod",label = "Enter your initials:")
+                   ),
+                   callbackR = addSppToDb,
+                   showCancelButton = T,
+                   showConfirmButton = T)
+    })
+    
+    addSppToDb <- function(x){
+        if(x){
+            dat <- hot_to_r(input$hot_add)
+            dat <- as.data.table(dat)
+            feas <- globalFeas$dat
+            dat <- melt(dat, id.vars = "SS_NoSpace", value.name = "Feas_New", variable.name = "Spp")
+            setnames(dat, old = c("Spp"), new = c("SppSplit"))
+            datComb <- feas[dat, on = c("SS_NoSpace","SppSplit")]
+            datComb[,Spp := NULL]
+            datComb <- datComb[!is.na(Feas_New),]
+            datComb[,Modifier := input$addsppMod]
+            datComb[,BGC := gsub("/.*","",SS_NoSpace)]
+            setnames(datComb, c("bgc","unit","sppsplit","feasible","new","modifier"))
+            dbWriteTable(con, name = "edatope_updates", value = datComb, row.names = F, append = T)
+            shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
+        }
+    }
+    
+    output$hot_delete <- renderRHandsontable({
+        if(!is.null(input$map_polygon_click)){
+            feas <- globalFeas$dat
+            event <- input$map_polygon_click
+            temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
+            unit <- gsub("tooltip.{3}","",temp)
+            feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3,4),
+                            .(SuitMax = min(Feasible)), by = .(SppSplit,BGC)]
+            feasMax <- feasMax[SppSplit != "X",]
+            nSpp <- length(unique(feasMax$SppSplit))
+            temp <- matrix(data = rep(T,nSpp),nrow = 1, ncol = nSpp, byrow = T)
+            colnames(temp) <- unique(feasMax$SppSplit)
+            rhandsontable(data = temp)
+        }
+    })
+    
+    observeEvent(input$removespp,{
+        shinyalert(html = T,
+                   text = tagList(
+                       h4("Uncheck a species to remove"),
+                       rHandsontableOutput("hot_delete"),
+                       textInput("removesppMod",label = "Enter your initials:")
+                   ),
+                   callbackR = removeSppToDb,
+                   showCancelButton = T,
+                   showConfirmButton = T,
+                   size = "m")
+    })
+    
+    removeSppToDb <- function(x){
+        if(x){
+            event <- input$map_polygon_click
+            temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
+            unit <- gsub("tooltip.{3}","",temp)
+            dat <- hot_to_r(input$hot_delete)
+            toRemove <- colnames(dat)[dat[1,] == F]
+            temp <- feas[BGC == unit & SppSplit %in% toRemove,]
+            temp[,new := 5]
+            temp[,Modifier := input$removesppMod]
+            temp[,Spp := NULL]
+            setnames(temp, c("bgc","unit","sppsplit","feasible","new","modifier"))
+            dbWriteTable(con, name = "edatope_updates", value = temp, row.names = F, append = T)
             shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
         }
     }
