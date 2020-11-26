@@ -43,6 +43,7 @@ cols[,Col := paste0(Col,alpha)]
 edaMaxCol <- "#2fa631ff"
 edaMinCol <- "#c91a1aff"
 grRamp <- colorRamp(c(edaMaxCol,edaMinCol),alpha = T) ##colour ramp for gray values
+grRamp2 <- colorRamp(c("#443e3dFF","#c0c0c0ff"),alpha = T) ##colour ramp for gray values
 
 ##setup species picker
 treelist <- fread("Tree_List_2020.csv")
@@ -75,11 +76,12 @@ feas[SppSplit %in% c("Pli","Plc"),Spp := "Pl"]
 feas[SppSplit %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss"),Spp := "Sx"]
 feas[SppSplit %in% c("Pyi","Pyc"),Spp := "Py"]
 setkey(feas,BGC,SppSplit)
-feasOrig <- feas
 
 eda <- fread("Edatopic_v11_20.csv")
 eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
 eda[,SMR := as.numeric(gsub("[[:alpha:]]","", Edatopic))]
+feas <- feas[SS_NoSpace %chin% eda$SS_NoSpace,]
+feasOrig <- feas
 treeLocs <- fread("TreeSppLocations.csv")
 treeLocs <- treeLocs[,.(Spp,Latitude,Longitude,`Plot Number`)]
 ##max suitability colours
@@ -508,7 +510,7 @@ server <- function(input, output) {
         if(input$type == "P/A"){
             if(length(unique(feasMax$SppSplit)) > 1){
                 feasMax[,SppNum := as.numeric(as.factor(SppSplit))]
-                tempCol <- grRamp(rescale(feasMax$SppNum,to = c(0,0.6)))
+                tempCol <- grRamp2(rescale(feasMax$SppNum,to = c(0,0.6)))
                 feasMax[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
                 temp <- unique(feasMax[,.(SppSplit,Col)])
                 
