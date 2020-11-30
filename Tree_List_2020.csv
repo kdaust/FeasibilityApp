@@ -1,3 +1,4 @@
+TreeCode,ScientificName,EnglishName,Group,Bad
 Acb,Populus balsamifera,balsam poplar,Broadleaf_BC,
 Act,Populus trichocarpa,black cottonwood,Broadleaf_BC,
 Ad,Populus deltoides,eastern cottonwood,Broadleaf_Native,
@@ -73,9 +74,8 @@ Qw,Quercus alba,white oak,Broadleaf_Exotic,x
 Ra,Arbutus menziesii,Pacific arbutus,Broadleaf_BC,
 Sb,Picea mariana,black spruce,Conifer_BC,
 Sn,Picea abies,Norway spruce,Conifer_Exotic,x
-"Sx (Sw, Se, Sxw)",Picea engelmannii,Engelmann spruce,Conifer_BC,
-"Ss (Ss, Sxl, Sxs)",,,,
-TreeCode,ScientificName,EnglishName,Group,Bad
+"Sx (Sw, Se, Sxw)",Picea engelmannii x glauca,Interior spruces,Conifer_BC,
+"Ss (Ss, Sxl, Sxs)",Picea sitchensis,Sitka spruce + hybrids,Conifer_BC,
 Tw,Taxus brevifolia,Pacific yew,Conifer_BC,
 Ua,Malus pumila,common apple,Broadleaf_Exotic,x
 UMCA,Umbellularia californica,California laurel,Broadleaf_Native,x
