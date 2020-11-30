@@ -19,9 +19,9 @@ library(shinyjs)
 ###Read in climate summary data
 drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
-#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
+con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
 
-con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
+#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
                  
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
@@ -122,25 +122,34 @@ edaLeg <- mapdeck_legend(leg)
 
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
 
+instr <- tagList(
+    p("To use this tool:"),
+    tags$ol(
+        tags$li("Select a species code to view its feasibility on the map."),
+        tags$li("Select type of map: A) Presence/Absence, B) Climatic Suitability. C) Suitability in select edatopic space."),
+        tags$li("Click on a BGC polygon to display feasibility ratings in table format")),
+    tags$hr(),
+    p("Note: When an edatopic position is selected, the values in the table can be updated and
+                                           submitted to a database. When viewing Presence/Absence, you can choose to either remove species from a 
+                                           selected polygon, or if you click on a currently unsuitable polygon, you can add the selected species.
+                                           To view updated feasibility toggle the Updated Feasibility Button"),
+    p("There are several other options available:"),
+    tags$ol(
+        tags$li("By default the tool shows only BC. Toggle WNA to see rating across western north america"),
+        tags$li("By default the tool does not show the BGC map. Shift slider to show colour-themed BGC"),
+        tags$li("Show locations of actual tree species collections/observations in the dataset")),
+    tags$hr()
+)
+
 # Define UI for application that draws a histogram
 ui <- navbarPage("Species Feasibility",
-                 tabPanel("WNA Map",
+                 tabPanel("Map",
                           useShinyalert(),
                           useShinyjs(),
                           fluidPage(
                                   column(3,
                                          h3("Spatial Maps of Tree Feasibility Ratings by BGC"),
-                                         p("1st select a species code to view its feasibility on the map."),
-                                         p("2nd select type of map: 1. Presence/Absence, 2. Climatic Suitability. 3. Suitability in select edatopic space."),
-                                         p("Clicking on a BGC polygon to show the feasibility ratihgs in table format below the map. The values in this table can be updated and
-                                           submitted to a database. To view updated feasibility instead of original feasibility, click the button
-                                           (and click again to return to original feasibility)."),
-                                         p("There are several other options available:"),
-                                         tags$ol(
-                                             tags$li("By default the tool shows only BC. Toogle WNA to see rating across western north america"),
-                                             tags$li("By default the tool does not show the BGC map. Shift slider to show colour-themed BGC"),
-                                             tags$li("Show locations of actual tree species collections/observations in the dataset")),
-                                         tags$hr(),
+                                         actionButton("showinstr","Show Instructions"),
                                          br(),
                                          h3("Select Tree Species"),
                                          pickerInput("sppPick",
@@ -153,8 +162,7 @@ ui <- navbarPage("Species Feasibility",
                                                       choices = c("Presence/Absence","Climatic Suitability"),
                                                       selected =  "Presence/Absence"),
                                          h4("Or Select Edatopic Space: \n"),
-                                         girafeOutput("edaplot", width = "400px"),                                         
-                                         br(),
+                                         girafeOutput("edaplot"),                                         
                                          h3("Options"),
                                          awesomeRadio("wnaORbc",
                                                       label = "Select BC or all of WNA",
@@ -196,7 +204,12 @@ server <- function(input, output) {
     globalFeas <- reactiveValues(dat = feasOrig)
     globalRendered <- reactiveValues(med = vector("numeric"), big = vector("numeric"))
     globalPoly <- reactiveValues(Small = bc_init, Big = wna_med[WNABC == "BC",])
+    globalLocation <- reactiveValues(loc = c(-124.72,54.56), zoom = 4.5)
     globalLeg <- reactiveValues(Legend = climaticLeg)
+    
+    observeEvent(input$showinstr,{
+        shinyalert(title = "Instructions",html = T,text = instr)
+    })
     
     testCanAdd <- function(){
         if(input$type == "Presence/Absence" & is.null(input$edaplot_selected)){
@@ -237,9 +250,13 @@ server <- function(input, output) {
         if(input$wnaORbc == "WNA"){
             globalPoly$Small <- wna_init
             globalPoly$Big <- wna_med
+            globalLocation$loc = c(-116.97,49)
+            globalLocation$zoom = 3.5
         }else{
             globalPoly$Small <- bc_init
             globalPoly$Big <- wna_med[WNABC == "BC",]
+            globalLocation$loc = c(-124.72,54.56)
+            globalLocation$zoom = 4.5
         }
     }, priority = 50)
     
@@ -273,7 +290,7 @@ server <- function(input, output) {
     output$map <- renderMapdeck({
         dat <- st_as_sf(globalPoly$Small)
         mapdeck() %>%
-            mapdeck_view(location = c(-124.72,54.56), zoom = 4) %>%
+            mapdeck_view(location = globalLocation$loc, zoom = globalLocation$zoom) %>%
             add_polygon(dat,
                         layer_id = "bgcmap",
                         fill_colour = "BGC_Col",
@@ -283,7 +300,7 @@ server <- function(input, output) {
                         update_view = F)
     })
     
-    observeEvent(input$bgcLayer,{
+    observeEvent({c(input$bgcLayer,input$wnaORbc)},{
         if(!input$bgcLayer){
             print("removing bgc")
             dat <- st_as_sf(globalPoly$Small)
@@ -299,7 +316,7 @@ server <- function(input, output) {
         }else{
             dat <- st_as_sf(globalPoly$Small)
             mapdeck_update(map_id = "map") %>%
-                mapdeck_view(location = c(-124.72,54.56), zoom = 4) %>%
+                mapdeck_view(location = globalLocation$loc, zoom = globalLocation$zoom) %>%
                 add_polygon(dat,
                             layer_id = "bgcmap",
                             fill_colour = "BGC_Col",
@@ -308,7 +325,7 @@ server <- function(input, output) {
                             focus_layer = F,
                             update_view = F)
         }
-    })
+    }, priority = 23)
     
     observeEvent(input$showtrees,{
         if(input$showtrees){
@@ -883,7 +900,8 @@ server <- function(input, output) {
             coord_fixed()
         
         girafe(ggobj = gg,
-               options = list(opts_selection(type = "single")))
+               options = list(opts_selection(type = "single")),
+               width_svg = 4, height_svg = 7)
     })
     
     # observeEvent(input$map_polygon_click, {
