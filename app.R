@@ -19,9 +19,10 @@ library(shinyjs)
 ###Read in climate summary data
 drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
-con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", 
-                 port = 5432, dbname = "feasibility_update")
+#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
 
+con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
+                 
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
 grd1y <- seq(1.5,7.5,1)
@@ -73,7 +74,8 @@ setnames(feas, old = "Spp",new = "SppSplit")
 feas[,Spp := SppSplit]
 feas[SppSplit %in% c("Fdi","Fdc"),Spp := "Fd"]
 feas[SppSplit %in% c("Pli","Plc"),Spp := "Pl"]
-feas[SppSplit %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss"),Spp := "Sx"]
+feas[SppSplit %in% c("Sw","Se","Sxw"),Spp := "Sx"]
+feas[SppSplit %in% c("Ss", "Sxl","Sxs"),Spp := "Ss"]
 feas[SppSplit %in% c("Pyi","Pyc"),Spp := "Py"]
 setkey(feas,BGC,SppSplit)
 
@@ -94,7 +96,7 @@ dryOpt <- data.table(Feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8f
 
 ##legends
 leg <- legend_element(
-    variables = c("No Restrictions","Dry Limited","Wet Limited","Split Feasibility","Added","Removed")
+    variables = c("Climatic Optimum","Dry Limited","Wet Limited","Split Feasibility","Added","Removed")
     , colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff")
     , colour_type = "fill"
     , variable_type = "category"
@@ -106,7 +108,7 @@ leg <- legend_element(
     , colours = suitcols$Col
     , colour_type = "fill"
     , variable_type = "category"
-    , title = "Max Feasibility"
+    , title = "Best Feasibility"
 )
 maxSuitLeg <- mapdeck_legend(leg)
 leg <- legend_element(
@@ -127,35 +129,43 @@ ui <- navbarPage("Species Feasibility",
                           useShinyjs(),
                           fluidPage(
                                   column(3,
-                                         h2("Welcome to the tree feasibility investigation tool!"),
-                                         p("Select a species code to investigate its feasibility on the map. You can select different
-                                           summaries by subzone/variant, or select an edatopic position on the chart below to show
-                                           feasibility in all site series in that space (unclick a selected edatope to return to summaries).
-                                           Click on a map polygon to show the feasibilities in a table format, which you can update and
-                                           submit to the database. To view updated feasibility instead of original feasibility, click the button
+                                         h3("Spatial Maps of Tree Feasibility Ratings by BGC"),
+                                         p("1st select a species code to view its feasibility on the map."),
+                                         p("2nd select type of map: 1. Presence/Absence, 2. Climatic Suitability. 3. Suitability in select edatopic space."),
+                                         p("Clicking on a BGC polygon to show the feasibility ratihgs in table format below the map. The values in this table can be updated and
+                                           submitted to a database. To view updated feasibility instead of original feasibility, click the button
                                            (and click again to return to original feasibility)."),
+                                         p("There are several other options available:"),
+                                         tags$ol(
+                                             tags$li("By default the tool shows only BC. Toogle WNA to see rating across western north america"),
+                                             tags$li("By default the tool does not show the BGC map. Shift slider to show colour-themed BGC"),
+                                             tags$li("Show locations of actual tree species collections/observations in the dataset")),
+                                         tags$hr(),
                                          br(),
-                                         h2("Options"),
+                                         h3("Select Tree Species"),
+                                         pickerInput("sppPick",
+                                                     label = "",
+                                                     choices = sppList,
+                                                     selected = "Pl (All)"),                                         
+                                         h4("Summary type"),
+                                         awesomeRadio("type",
+                                                      label = "Select Summary by Subzone",
+                                                      choices = c("Presence/Absence","Climatic Suitability"),
+                                                      selected =  "Presence/Absence"),
+                                         h4("Or Select Edatopic Space: \n"),
+                                         girafeOutput("edaplot", width = "400px"),                                         
+                                         br(),
+                                         h3("Options"),
                                          awesomeRadio("wnaORbc",
                                                       label = "Select BC or all of WNA",
                                                       choices = c("BC","WNA"),
                                                       inline = T,
                                                       selected = "BC"),
-                                         pickerInput("sppPick",
-                                                     label = "Select Tree Species",
-                                                     choices = sppList,
-                                                     selected = "Pl (All)"),
-                                         switchInput("bgcLayer",label = "Show BGC",value = T,labelWidth = "80px"),
+
+                                         switchInput("bgcLayer",label = "Show BGC",value = F,labelWidth = "80px"),
                                          switchInput("updatedfeas","Updated Feas",value = F, labelWidth = "100px"),
-                                         switchInput("showtrees",label = "Show Plots", value = F, labelWidth = "100px"),
-                                         br(),
-                                         h2("Summary type"),
-                                         awesomeRadio("type",
-                                                      label = "Select Summary by Subzone",
-                                                      choices = c("Climatic Suit","P/A"),
-                                                      selected =  "Climatic Suit"),
-                                         h4("Or Select Edatopic Space: \n"),
-                                         girafeOutput("edaplot", width = "400px")
+                                         switchInput("showtrees",label = "Show Plots", value = F, labelWidth = "100px")
+                                         
                                   ),
                                   column(9,
                                          withSpinner(
@@ -163,7 +173,7 @@ ui <- navbarPage("Species Feasibility",
                                              type = 6
                                          ),
                                          br(),
-                                         h2("Suitability data for selected polygon:"),
+                                         h3("Suitability data for selected polygon:"),
                                          p("Edit the feasibility values here. When you click submit, 
                                             the updated values will be sent to a database. If you are looking
                                            at updated values, they will be shown with a pink background on the table."),
@@ -189,7 +199,7 @@ server <- function(input, output) {
     globalLeg <- reactiveValues(Legend = climaticLeg)
     
     testCanAdd <- function(){
-        if(input$type == "P/A" & is.null(input$edaplot_selected)){
+        if(input$type == "Presence/Absence" & is.null(input$edaplot_selected)){
             event <- input$map_polygon_click
             if(!is.null(event)){
                 temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
@@ -205,7 +215,7 @@ server <- function(input, output) {
     }
     
     testCanRemove <- function(){
-        if(input$type == "P/A" & is.null(input$edaplot_selected)){
+        if(input$type == "Presence/Absence" & is.null(input$edaplot_selected)){
             event <- input$map_polygon_click
             if(!is.null(event)){
                 return(TRUE)
@@ -247,7 +257,8 @@ server <- function(input, output) {
             temp[is.na(Spp),Spp := SppSplit]
             temp[Spp %in% c("Fdi","Fdc"),Spp := "Fd"]
             temp[Spp %in% c("Pli","Plc"),Spp := "Pl"]
-            temp[Spp %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss"),Spp := "Sx"]
+            temp[Spp %in% c("Se","Sw","Sxw"),Spp := "Sx"]
+            temp[Spp %in% c("Sxl","Sxs","Ss"),Spp := "Ss"]           
             temp[Spp %in% c("Pyi","Pyc"),Spp := "Py"]
             temp[is.na(BGC),BGC := gsub("/.*","",SS_NoSpace)]
             setcolorder(temp, colnames(feasOrig))
@@ -507,7 +518,7 @@ server <- function(input, output) {
         feas <- globalFeas$dat
         feasMax <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3,4,5),
                         .(SuitMax = min(Feasible)), by = .(BGC,SppSplit)]
-        if(input$type == "P/A"){
+        if(input$type == "Presence/Absence"){
             if(length(unique(feasMax$SppSplit)) > 1){
                 feasMax[,SppNum := as.numeric(as.factor(SppSplit))]
                 tempCol <- grRamp2(rescale(feasMax$SppNum,to = c(0,0.6)))
@@ -652,7 +663,7 @@ server <- function(input, output) {
         idx_row <- NULL
         idx_col <- NULL
         if(is.null(input$edaplot_selected)){
-            if(input$type == "Climatic Suit"){
+            if(input$type == "Climatic Suitability"){
                 tempFeas <- feas[BGC == unit & Feasible %in% c(1,2,3),]
                 tempEda <- eda[tempFeas, on = "SS_NoSpace"]
                 tempEda <- tempEda[!is.na(SMR),]
@@ -689,7 +700,8 @@ server <- function(input, output) {
             
         }
         spp <- colnames(tabOut)
-        spp[spp %in% c("Se","Sw","Sxw","Sxl","Sxs","Ss")] <- "Sx"
+        spp[spp %in% c("Se","Sw","Sxw")] <- "Sx"
+        spp[spp %in% c("Sxl","Sxs","Ss")] <- "Ss"        
         spp <- substr(spp, 1,2)
         sppCurr <- substr(input$sppPick,1,2)
         if(sppCurr %in% spp){
@@ -886,7 +898,7 @@ server <- function(input, output) {
     ##table caption
     output$tableInfo <- renderText({
         if(is.null(input$edaplot_selected)){
-            if(input$type == "Climatic Suit"){
+            if(input$type == "Climatic Suitability"){
                 "Zonal feasibility and maximum feasibility in wetter and drier sites"
             }else{
                 "Maximum feasibility by subzone"
