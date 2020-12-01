@@ -1,6 +1,5 @@
 TreeCode,ScientificName,EnglishName,Group,Bad
-Acb,Populus balsamifera,balsam poplar,Broadleaf_BC,
-Act,Populus trichocarpa,black cottonwood,Broadleaf_BC,
+"Ac(Acb, Act)",Populus balsamifera/trichocarpa,balsam poplar/cottonwood,Broadleaf_BC,
 Ad,Populus deltoides,eastern cottonwood,Broadleaf_Native,
 Ad,Populus deltoides ssp. deltoides,eastern cottonwood,Broadleaf_Native,x
 Ad,Populus deltoides ssp. monilifera,plains eastern cottonwood,Broadleaf_Native,x
@@ -28,7 +27,7 @@ Gp,Cornus nuttallii,western flowering dogwood,Broadleaf_BC,x
 Hm,Tsuga mertensiana,mountain hemlock,Conifer_BC,
 Hw,Tsuga heterophylla,western hemlock,Conifer_BC,
 Jr,Juniperus scopulorum,Rocky Mountain juniper,Conifer_BC,
-Js,Juniperus maritima,seaside juniper,Conifer_BC,
+Js,Juniperus maritima,seaside juniper,Conifer_BC,x
 Kc,Frangula purshiana,cascara buckthorn,Broadleaf_BC,x
 Kc,Frangula purshiana ssp. purshiana,cascara buckthorn,Broadleaf_BC,x
 La,Larix lyallii,subalpine larch,Conifer_BC,
@@ -65,7 +64,6 @@ Pw,Pinus monticola,western white pine,Conifer_BC,
 Qb,Quercus kelloggii,black oak,Broadleaf_Native,
 Qc,Quercus chrysolepsis,canyon live oak,Broadleaf_Native,
 Qe,Quercus robur,English oak,Broadleaf_Exotic,x
-Qg,Quercus garryana var. garryana,Garry oak,Broadleaf_BC,
 Qg,Quercus garryana,Garry oak,Broadleaf_BC,
 Qm,Quercus macrocarpa,burr oak,Broadleaf_Native,
 Qs,Quercus sadleriana,Sadler oak,Broadleaf_Native,
