@@ -19,9 +19,9 @@ library(shinyjs)
 ###Read in climate summary data
 drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
-con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
+#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
 
-#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
+con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
                  
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
@@ -31,7 +31,7 @@ rects <- data.table(xmin = rep(c(0.5,3.5), each = 5),
                     ymin = rep(c(0.5,1.5,3.5,5.5,7.5),2),
                     ymax = rep(c(1.5,3.5,5.5,7.5,8.5),2))
 ids <- 1:10
-labs <- c("SHD-P","SAG/HG-P","Sm/m-P","Sx/x-P","Vx-P","SHD-R","SAG/HG-R","Sm/m-R","Sx/x-R","Vx-R")
+labs <- c("SHD-P","SHG/HG-P","SM/M-P","SX/X-P","VX-P","SHD-R","SHG/HG-R","SM/M-R","SX/X-R","VX-R")
 idDat <- expand.grid(SMR = 0:7, SNR = c("A","B","C","D","E"))
 idDat <- as.data.table(idDat)
 setorder(idDat,SMR,SNR)
@@ -77,6 +77,7 @@ feas[SppSplit %in% c("Pli","Plc"),Spp := "Pl"]
 feas[SppSplit %in% c("Sw","Se","Sxw"),Spp := "Sx"]
 feas[SppSplit %in% c("Ss", "Sxl","Sxs"),Spp := "Ss"]
 feas[SppSplit %in% c("Pyi","Pyc"),Spp := "Py"]
+feas[SppSplit %in% c("Acb","Act"),Spp := "Ac"]
 setkey(feas,BGC,SppSplit)
 
 eda <- fread("Edatopic_v11_20.csv")
@@ -96,7 +97,7 @@ dryOpt <- data.table(Feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8f
 
 ##legends
 leg <- legend_element(
-    variables = c("Climatic Optimum","Dry Limited","Wet Limited","Split Feasibility","Added","Removed")
+    variables = c("Climatic Optimum","Wet Site Optimum","Dry Site Optimum","Bimodal Feasibility","Off-site Addition","Removed from CFRG")
     , colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff")
     , colour_type = "fill"
     , variable_type = "category"
@@ -149,13 +150,12 @@ ui <- navbarPage("Species Feasibility",
                           fluidPage(
                                   column(3,
                                          h3("Spatial Maps of Tree Feasibility Ratings by BGC"),
-                                         actionButton("showinstr","Show Instructions"),
-                                         br(),
-                                         h3("Select Tree Species"),
+                                         actionButton("showinstr","Click To Show Instructions"),
+                                         h4("Select A Tree Species"),
                                          pickerInput("sppPick",
                                                      label = "",
                                                      choices = sppList,
-                                                     selected = "Pl (All)"),                                         
+                                                     selected = "Ba"),                                         
                                          h4("Summary type"),
                                          awesomeRadio("type",
                                                       label = "Select Summary by Subzone",
@@ -277,6 +277,7 @@ server <- function(input, output) {
             temp[Spp %in% c("Se","Sw","Sxw"),Spp := "Sx"]
             temp[Spp %in% c("Sxl","Sxs","Ss"),Spp := "Ss"]           
             temp[Spp %in% c("Pyi","Pyc"),Spp := "Py"]
+            temp[Spp %in% c("Acb","Act"),Spp := "Ac"]
             temp[is.na(BGC),BGC := gsub("/.*","",SS_NoSpace)]
             setcolorder(temp, colnames(feasOrig))
             globalFeas$dat <- temp
