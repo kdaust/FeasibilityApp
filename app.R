@@ -19,9 +19,9 @@ library(shinyjs)
 ###Read in climate summary data
 drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
-#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
+con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
 
-con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
+#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
                  
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
@@ -187,6 +187,7 @@ ui <- navbarPage("Species Feasibility",
                                            at updated values, they will be shown with a pink background on the table."),
                                          textOutput("tableInfo"),
                                          fluidRow(
+                                             uiOutput("tableBGC"),
                                              rHandsontableOutput("hot"),
                                              hidden(actionBttn("submitdat", label = "Submit!")),
                                              hidden(actionBttn("addspp","Add Current Species")),
@@ -670,6 +671,18 @@ server <- function(input, output) {
     #     dat
     # })
     
+    output$tableBGC <- renderUI({
+        event <- input$map_polygon_click
+        if(!is.null(event)){
+            temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
+            unit <- gsub("tooltip.{3}","",temp)
+            tagList(
+                h3(paste0("Feasibility for ",unit)),
+                br()
+            )
+        }
+    })
+    
     ##prepare suitability table when polygon clicked
     prepTable <- reactive({
         event <- input$map_polygon_click
@@ -686,8 +699,8 @@ server <- function(input, output) {
                 tempEda <- eda[tempFeas, on = "SS_NoSpace"]
                 tempEda <- tempEda[!is.na(SMR),]
                 tempEda <- tempEda[,.(AvgSMR = mean(SMR)), by = .(SS_NoSpace,Feasible,SppSplit)]
-                tempEda[,SSType := fifelse(AvgSMR < 3.5,"Dry",
-                                           fifelse(AvgSMR > 4.1,"Wet","Zonal"))]
+                tempEda[,SSType := fifelse(grepl("01",SS_NoSpace),"Zonal",fifelse(AvgSMR <= 3.5,"Dry",
+                                                                                  fifelse(AvgSMR > 4.1,"Wet","??")))]
                 tabOut <- dcast(tempEda, SSType ~ SppSplit, value.var = "Feasible", fun.aggregate = min)
                 tabOut[tabOut == 0] <- NA
             }else{
