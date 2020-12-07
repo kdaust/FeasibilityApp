@@ -19,9 +19,9 @@ library(shinyjs)
 ###Read in climate summary data
 drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
-con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
+#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
 
-#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
+con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update")
                  
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
@@ -41,8 +41,8 @@ cols <- fread("WNAv12_HexColours.csv")
 setnames(cols, c("BGC","Col"))
 alpha <- "4D"
 cols[,Col := paste0(Col,alpha)]
-edaMaxCol <- "#2fa631ff"
-edaMinCol <- "#c91a1aff"
+edaMaxCol <- "#00fa00ff"
+edaMinCol <- "#fa0000ff"
 grRamp <- colorRamp(c(edaMaxCol,edaMinCol),alpha = T) ##colour ramp for gray values
 grRamp2 <- colorRamp(c("#443e3dFF","#c0c0c0ff"),alpha = T) ##colour ramp for gray values
 
