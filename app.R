@@ -19,9 +19,9 @@ library(shinyjs)
 ###Read in climate summary data
 drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
-#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
 
-con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update")
+con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update") ## server use
+#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update") ##home use
                  
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
@@ -37,7 +37,7 @@ idDat <- as.data.table(idDat)
 setorder(idDat,SMR,SNR)
 idDat[,ID := c(5,5,5,10,10,4,4,4,9,9,4,4,4,9,9,3,3,3,8,8,3,3,3,8,8,2,2,2,7,7,2,2,2,7,7,1,1,1,6,6)]
 idDat[,Edatopic := paste0(SNR,SMR)]
-cols <- fread("WNAv12_HexColours.csv")
+cols <- fread("./inputs/WNAv12_HexColours.csv")
 setnames(cols, c("BGC","Col"))
 alpha <- "4D"
 cols[,Col := paste0(Col,alpha)]
@@ -47,28 +47,28 @@ grRamp <- colorRamp(c(edaMaxCol,edaMinCol),alpha = T) ##colour ramp for gray val
 grRamp2 <- colorRamp(c("#443e3dFF","#c0c0c0ff"),alpha = T) ##colour ramp for gray values
 
 ##setup species picker
-treelist <- fread("Tree_List_2020.csv")
+treelist <- fread("./inputs/Tree_List_2020.csv")
 treelist <- treelist[Bad != "x",.(TreeCode,Group)]
 sppList <- list()
 for(nm in c("Conifer_BC","Broadleaf_BC","Conifer_Native","Broadleaf_Native")){
     temp <- treelist[Group == nm, TreeCode]
     sppList[[nm]] <- temp
 }
-bc_init <- st_read(dsn = "BC_Init.gpkg")
+bc_init <- st_read(dsn = "./inputs/BC_Init.gpkg")
 bc_init <- as.data.table(bc_init)
 bc_init[cols, BGC_Col := i.Col, on = "BGC"]
-wna_init <- st_read(dsn = "WNA_Small_Tiled.gpkg")
+wna_init <- st_read(dsn = "./inputs/WNA_Small_Tiled.gpkg")
 wna_init <- as.data.table(wna_init)
 wna_init[cols, BGC_Col := i.Col, on = "BGC"]
-wna_med <- st_read(dsn = "WNA_Tiled_12_BC.gpkg")
+wna_med <- st_read(dsn = "./inputs/WNA_Tiled_12_BC.gpkg")
 wna_med <- as.data.table(wna_med)
 wna_med[cols, BGC_Col := i.Col, on = "BGC"]
-grd_big <- st_read(dsn = "WNA_GrdID_900.gpkg") %>% st_transform(4326)
+grd_big <- st_read(dsn = "./inputs/WNA_GrdID_900.gpkg") %>% st_transform(4326)
 #wna_big <- st_read(dsn = "WNA_Tiled_900.gpkg")
 #wna_big <- as.data.table(wna_big)
 #wna_big[cols, BGC_Col := i.Col, on = "BGC"]
 
-feas <- fread("Feasibility_v11_22.csv")
+feas <- fread("./inputs/Feasibility_v11_22.csv")
 feas <- feas[,.(BGC,SS_NoSpace,Spp,Feasible)]
 setnames(feas, old = "Spp",new = "SppSplit")
 feas[,Spp := SppSplit]
@@ -80,12 +80,12 @@ feas[SppSplit %in% c("Pyi","Pyc"),Spp := "Py"]
 feas[SppSplit %in% c("Acb","Act"),Spp := "Ac"]
 setkey(feas,BGC,SppSplit)
 
-eda <- fread("Edatopic_v11_20.csv")
+eda <- fread("./inputs/Edatopic_v11_20.csv")
 eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
 eda[,SMR := as.numeric(gsub("[[:alpha:]]","", Edatopic))]
 feas <- feas[SS_NoSpace %chin% eda$SS_NoSpace,]
 feasOrig <- feas
-treeLocs <- fread("TreeSppLocations.csv")
+treeLocs <- fread("./inputs/TreeSppLocations.csv")
 treeLocs <- treeLocs[,.(Spp,Latitude,Longitude,`Plot Number`)]
 ##max suitability colours
 suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3dFF","#736e6eFF","#a29f9eFF"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
