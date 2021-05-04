@@ -19,6 +19,7 @@ library(shinyjs)
 ###Read in climate summary data
 drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
+
 con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update") ## server use
 #con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update") ##home use
                  
