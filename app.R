@@ -99,7 +99,7 @@ leg <- legend_element(
 )
 maxSuitLeg <- mapdeck_legend(leg)
 leg <- legend_element(
-    variables = c("Low Feasibility","Best Feasibility")
+    variables = c("Poor Feasibility","Good Feasibility")
     , colours = c(edaMinCol,edaMaxCol)
     , colour_type = "fill"
     , variable_type = "gradient",

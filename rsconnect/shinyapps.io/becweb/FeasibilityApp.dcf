@@ -1,0 +1,13 @@
+name: FeasibilityApp
+title: FeasibilityApp
+username:
+account: becweb
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3486620
+bundleId: 4146401
+url: https://becweb.shinyapps.io/FeasibilityApp/
+when: 1611689861.86166
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: README.md
