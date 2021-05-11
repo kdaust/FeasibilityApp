@@ -19,10 +19,11 @@ library(shinyjs)
 ###Read in climate summary data
 drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
+con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "68.183.199.104", 
+                 port = 5432, dbname = "spp_feas")
+#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update") ## server use
 
-con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update") ## server use
-#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "FLNRServer", port = 5432, dbname = "feasibility_update") ##home use
-                 
+
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
 grd1y <- seq(1.5,7.5,1)
@@ -36,9 +37,9 @@ idDat <- expand.grid(SMR = 0:7, SNR = c("A","B","C","D","E"))
 idDat <- as.data.table(idDat)
 setorder(idDat,SMR,SNR)
 idDat[,ID := c(5,5,5,10,10,4,4,4,9,9,4,4,4,9,9,3,3,3,8,8,3,3,3,8,8,2,2,2,7,7,2,2,2,7,7,1,1,1,6,6)]
-idDat[,Edatopic := paste0(SNR,SMR)]
+idDat[,edatopic := paste0(SNR,SMR)]
 cols <- fread("./inputs/WNAv12_HexColours.csv")
-setnames(cols, c("BGC","Col"))
+setnames(cols, c("bgc","Col"))
 alpha <- "4D"
 cols[,Col := paste0(Col,alpha)]
 edaMaxCol <- "#00fa00ff"
@@ -49,51 +50,36 @@ grRamp2 <- colorRamp(c("#443e3dFF","#c0c0c0ff"),alpha = T) ##colour ramp for gra
 ##setup species picker
 treelist <- fread("./inputs/Tree_List_2020.csv")
 treelist <- treelist[Bad != "x",.(TreeCode,Group)]
+treelist <- rbind(treelist,data.table(TreeCode = "None",Group = "Conifer_BC"))
 sppList <- list()
 for(nm in c("Conifer_BC","Broadleaf_BC","Conifer_Native","Broadleaf_Native")){
     temp <- treelist[Group == nm, TreeCode]
     sppList[[nm]] <- temp
 }
+allSppNames <- dbGetQuery(con,"select distinct sppsplit from feasorig")[,1]
 bc_init <- st_read(dsn = "./inputs/BC_Init.gpkg")
+colnames(bc_init)[1] <- "bgc"
 bc_init <- as.data.table(bc_init)
-bc_init[cols, BGC_Col := i.Col, on = "BGC"]
+bc_init[cols, BGC_Col := i.Col, on = "bgc"]
 wna_init <- st_read(dsn = "./inputs/WNA_Small_Tiled.gpkg")
+colnames(wna_init)[1] <- "bgc"
 wna_init <- as.data.table(wna_init)
-wna_init[cols, BGC_Col := i.Col, on = "BGC"]
+wna_init[cols, BGC_Col := i.Col, on = "bgc"]
 wna_med <- st_read(dsn = "./inputs/WNA_Tiled_12_BC.gpkg")
+colnames(wna_med)[1] <- "bgc"
 wna_med <- as.data.table(wna_med)
-wna_med[cols, BGC_Col := i.Col, on = "BGC"]
+wna_med[cols, BGC_Col := i.Col, on = "bgc"]
 grd_big <- st_read(dsn = "./inputs/WNA_GrdID_900.gpkg") %>% st_transform(4326)
-#wna_big <- st_read(dsn = "WNA_Tiled_900.gpkg")
-#wna_big <- as.data.table(wna_big)
-#wna_big[cols, BGC_Col := i.Col, on = "BGC"]
 
-feas <- fread("./inputs/Feasibility_v11_22.csv")
-feas <- feas[,.(BGC,SS_NoSpace,Spp,Feasible)]
-setnames(feas, old = "Spp",new = "SppSplit")
-feas[,Spp := SppSplit]
-feas[SppSplit %in% c("Fdi","Fdc"),Spp := "Fd"]
-feas[SppSplit %in% c("Pli","Plc"),Spp := "Pl"]
-feas[SppSplit %in% c("Sw","Se","Sxw"),Spp := "Sx"]
-feas[SppSplit %in% c("Ss", "Sxl","Sxs"),Spp := "Ss"]
-feas[SppSplit %in% c("Pyi","Pyc"),Spp := "Py"]
-feas[SppSplit %in% c("Acb","Act"),Spp := "Ac"]
-setkey(feas,BGC,SppSplit)
-
-eda <- fread("./inputs/Edatopic_v11_20.csv")
-eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
-eda[,SMR := as.numeric(gsub("[[:alpha:]]","", Edatopic))]
-feas <- feas[SS_NoSpace %chin% eda$SS_NoSpace,]
-feasOrig <- feas
-treeLocs <- fread("./inputs/TreeSppLocations.csv")
-treeLocs <- treeLocs[,.(Spp,Latitude,Longitude,`Plot Number`)]
 ##max suitability colours
+eda <- dbGetQuery(con,"select * from eda")
+eda <- as.data.table(eda)
 suitcols <- data.table(Suit = c(1,2,3),Col = c("#443e3dFF","#736e6eFF","#a29f9eFF"))#c("#42CF20FF","#ECCD22FF","#EC0E0EFF")
 ##climatic suitability colours
 zonalOpt <- "#3e6837ff"
-wetOpt <- data.table(Feasible = c(1,2,3), Col = c("#c24f00ff","#cd804bff","#fbbd92ff"))
+wetOpt <- data.table(feasible = c(1,2,3), Col = c("#c24f00ff","#cd804bff","#fbbd92ff"))
 splitOpt <- "#df00a9ff"
-dryOpt <- data.table(Feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8fdbff"))
+dryOpt <- data.table(feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8fdbff"))
 
 ##legends
 leg <- legend_element(
@@ -127,12 +113,12 @@ instr <- tagList(
     p("To use this tool:"),
     tags$ol(
         tags$li("Select a species code to view its feasibility on the map."),
-        tags$li("Select type of map: A) Presence/Absence, B) Climatic Suitability. C) Suitability in select edatopic space."),
+        tags$li("Select type of map: A) Presence/Absence, B) Climatic Suitability. C) Suitability in select edatopic space 
+                (click again to return to summarised view)."),
         tags$li("Click on a BGC polygon to display feasibility ratings in table format")),
     tags$hr(),
-    p("Note: When an edatopic position is selected, the values in the table can be updated and
-                                           submitted to a database. When viewing Presence/Absence, you can choose to either remove species from a 
-                                           selected polygon, or if you click on a currently unsuitable polygon, you can add the selected species.
+    p("Note: The values in the table can be updated and
+                                           submitted to a database unless Climatic Suitability is selected. 
                                            To view updated feasibility toggle the Updated Feasibility Button"),
     p("There are several other options available:"),
     tags$ol(
@@ -143,7 +129,7 @@ instr <- tagList(
 )
 
 # Define UI for application that draws a histogram
-ui <- navbarPage("Species Feasibility",
+ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                  tabPanel("Map",
                           useShinyalert(),
                           useShinyjs(),
@@ -189,9 +175,8 @@ ui <- navbarPage("Species Feasibility",
                                          fluidRow(
                                              uiOutput("tableBGC"),
                                              rHandsontableOutput("hot"),
-                                             hidden(actionBttn("submitdat", label = "Submit!")),
-                                             hidden(actionBttn("addspp","Add Current Species")),
-                                             hidden(actionBttn("removespp","Remove Species"))
+                                             hidden(actionBttn("submitdat", label = "Submit Changes!")),
+                                             hidden(actionBttn("addspp","Add Species"))
                                          )
                                   )
                               
@@ -202,7 +187,7 @@ ui <- navbarPage("Species Feasibility",
 
 
 server <- function(input, output) {
-    globalFeas <- reactiveValues(dat = feasOrig)
+    globalFeas <- reactiveValues(dat = "feasible")
     globalRendered <- reactiveValues(med = vector("numeric"), big = vector("numeric"))
     globalPoly <- reactiveValues(Small = bc_init, Big = wna_med[WNABC == "BC",])
     globalLocation <- reactiveValues(loc = c(-124.72,54.56), zoom = 4.5)
@@ -214,37 +199,27 @@ server <- function(input, output) {
     
     testCanAdd <- function(){
         if(input$type == "Presence/Absence" & is.null(input$edaplot_selected)){
-            event <- input$map_polygon_click
-            if(!is.null(event)){
-                temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
-                unit <- gsub("tooltip.{3}","",temp)
-                feas <- globalFeas$dat
-                spp <- unique(feas[BGC == unit,Spp])
-                if(!substr(input$sppPick,1,2) %in% spp){
-                    return(TRUE)
-                }
-            }
+            return(TRUE)
         }
         return(FALSE)
     }
     
-    testCanRemove <- function(){
-        if(input$type == "Presence/Absence" & is.null(input$edaplot_selected)){
-            event <- input$map_polygon_click
-            if(!is.null(event)){
-                return(TRUE)
-            }
-        }
-        return(FALSE)
-    }
+    # testCanRemove <- function(){
+    #     if(input$type == "Presence/Absence" & is.null(input$edaplot_selected)){
+    #         event <- input$map_polygon_click
+    #         if(!is.null(event)){
+    #             return(TRUE)
+    #         }
+    #     }
+    #     return(FALSE)
+    # }
     
     observeEvent({c(input$type,input$map_polygon_click,input$edaplot_selected)},{
         toggle(id = "addspp", condition = testCanAdd())
-        toggle(id = "removespp", condition = testCanRemove())
     })
     
     observe({
-        toggle(id = "submitdat", condition = !is.null(input$edaplot_selected))
+        toggle(id = "submitdat", condition = input$type != "Climatic Suitability")
     })
     
     observeEvent(input$wnaORbc,{
@@ -261,29 +236,13 @@ server <- function(input, output) {
         }
     }, priority = 50)
     
-    ##update global feasibility values
+    ##this is the column name in the database
     observeEvent(input$updatedfeas,{
         print("Updating feasibility")
         if(input$updatedfeas){
-            newDat <- dbGetQuery(con, "SELECT * FROM edatope_updates")
-            newDat <- as.data.table(newDat)
-            newDat <- newDat[,.(unit,sppsplit,new)]
-            setnames(newDat, c("SS_NoSpace","SppSplit","NewFeas"))
-            temp <- merge(feasOrig,newDat, by = c("SS_NoSpace","SppSplit"), all = T)
-            temp[!is.na(NewFeas), Feasible := NewFeas]
-            temp[,NewFeas := NULL]
-            temp[is.na(Spp),Spp := SppSplit]
-            temp[Spp %in% c("Fdi","Fdc"),Spp := "Fd"]
-            temp[Spp %in% c("Pli","Plc"),Spp := "Pl"]
-            temp[Spp %in% c("Se","Sw","Sxw"),Spp := "Sx"]
-            temp[Spp %in% c("Sxl","Sxs","Ss"),Spp := "Ss"]           
-            temp[Spp %in% c("Pyi","Pyc"),Spp := "Py"]
-            temp[Spp %in% c("Acb","Act"),Spp := "Ac"]
-            temp[is.na(BGC),BGC := gsub("/.*","",SS_NoSpace)]
-            setcolorder(temp, colnames(feasOrig))
-            globalFeas$dat <- temp
+            globalFeas$dat <- "newfeas"
         }else{
-            globalFeas$dat <- feasOrig
+            globalFeas$dat <- "feasible"
         }
         
     }, priority = 20)
@@ -296,7 +255,7 @@ server <- function(input, output) {
             add_polygon(dat,
                         layer_id = "bgcmap",
                         fill_colour = "BGC_Col",
-                        tooltip = "BGC",
+                        tooltip = "bgc",
                         auto_highlight = F,
                         focus_layer = F,
                         update_view = F)
@@ -311,7 +270,7 @@ server <- function(input, output) {
                             layer_id = "bgcmap",
                             fill_colour = "purple",
                             fill_opacity = 0,
-                            tooltip = "BGC",
+                            tooltip = "bgc",
                             auto_highlight = F,
                             focus_layer = F,
                             update_view = F)
@@ -322,28 +281,38 @@ server <- function(input, output) {
                 add_polygon(dat,
                             layer_id = "bgcmap",
                             fill_colour = "BGC_Col",
-                            tooltip = "BGC",
+                            tooltip = "bgc",
                             auto_highlight = F,
                             focus_layer = F,
                             update_view = F)
         }
     }, priority = 23)
     
-    observeEvent(input$showtrees,{
+    observeEvent({c(input$showtrees,
+                    input$sppPick,
+                    input$wnaORbc)},{
         if(input$showtrees){
-            dat <- treeLocs[Spp == substr(input$sppPick,1,2),]
+            sppName <- substr(input$sppPick,1,2)
+            if(input$wnaORbc == "BC"){
+                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"' and region = 'BC'")
+            }else{
+                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"'")
+            }
+            
+            dat <- st_read(con,query = QRY)
             if(nrow(dat) > 1){
                 mapdeck_update(map_id = "map") %>%
-                    add_scatterplot(data = dat,
-                                    layer_id = "tree_points",
-                                    lon = "Longitude",
-                                    lat = "Latitude",
-                                    fill_colour = "black",
-                                    radius = 1,
-                                    radius_min_pixels = 5,
-                                    radius_max_pixels = 10,
-                                    focus_layer = F,
-                                    update_view = F)
+                    clear_scatterplot(layer_id = "tree_points") %>%
+                    clear_scatterplot(layer_id = "tree_points2") %>%
+                    add_sf(data = dat,
+                            layer_id = "tree_points",
+                            fill_colour = "black",
+                           tooltip = "plotnum",
+                            radius = 1,
+                            radius_min_pixels = 5,
+                            radius_max_pixels = 10,
+                            focus_layer = F,
+                            update_view = F)
             }
         }else{
             mapdeck_update(map_id = "map") %>%
@@ -372,6 +341,9 @@ server <- function(input, output) {
                         update_view = F,
                         legend = globalLeg$Legend
             )
+    }else{
+        mapdeck_update(map_id = "map") %>%
+            clear_polygon(layer_id = "zone")
     }
 
 }, priority = 15)
@@ -425,19 +397,24 @@ server <- function(input, output) {
                                         update_view = F
                             )
                         if(input$showtrees){
-                            dat <- treeLocs[Spp == substr(input$sppPick,1,2),]
+                            sppName <- substr(input$sppPick,1,2)
+                            if(input$wnaORbc == "BC"){
+                                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"' and region = 'BC'")
+                            }else{
+                                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"'")
+                            }
+                            dat <- st_read(con,query = QRY)
                             if(nrow(dat) > 1){
                                 mapdeck_update(map_id = "map") %>%
-                                    add_scatterplot(data = dat,
-                                                    layer_id = "tree_points2",
-                                                    lon = "Longitude",
-                                                    lat = "Latitude",
-                                                    fill_colour = "black",
-                                                    radius = 1,
-                                                    radius_min_pixels = 5,
-                                                    radius_max_pixels = 10,
-                                                    focus_layer = F,
-                                                    update_view = F)
+                                    add_sf(data = dat,
+                                           layer_id = "tree_points2",
+                                           fill_colour = "black",
+                                           tooltip = "plotnum",
+                                           radius = 1,
+                                           radius_min_pixels = 5,
+                                           radius_max_pixels = 10,
+                                           focus_layer = F,
+                                           update_view = F)
                             }
                         }
                     }
@@ -484,49 +461,54 @@ server <- function(input, output) {
     
     ###calculate climatic suitability colours
     prepClimSuit <- reactive({
-        feas <- globalFeas$dat
-        tempFeas <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3),]
-        minDist <- tempFeas[,.SD[Feasible == min(Feasible, na.rm = T)],by = .(BGC)]
-        abUnits <- minDist[grep("[[:alpha:]] */[[:alpha:]]+$",SS_NoSpace),]
-        noAb <- minDist[!grepl("[[:alpha:]] */[[:alpha:]]+$",SS_NoSpace),]
-        abUnits <- eda[abUnits, on = "SS_NoSpace"]
-        abUnits <- abUnits[,.(Temp = if(any(grepl("C4",Edatopic))) paste0(SS_NoSpace,"_01") else SS_NoSpace, Feasible = Feasible[1]),
-                           by = .(BGC,SS_NoSpace,SppSplit,Spp)]
-        abUnits[,SS_NoSpace := NULL]
-        setnames(abUnits,old = "Temp",new = "SS_NoSpace")
+        # feas <- globalFeas$dat
+        # tempFeas <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3),]
+        QRY <- paste0("select bgc,ss_nospace,sppsplit,spp,",globalFeas$dat,
+                      " from feasorig where spp = '",substr(input$sppPick,1,2),
+                      "' and ",globalFeas$dat," in (1,2,3,4,5)")
+        feas <- as.data.table(dbGetQuery(con, QRY))
+        setnames(feas, old = globalFeas$dat, new = "feasible")
+        tempFeas <- feas[feasible %in% c(1,2,3),]
+        minDist <- tempFeas[,.SD[feasible == min(feasible, na.rm = T)],by = .(bgc)]
+        abUnits <- minDist[grep("[[:alpha:]] */[[:alpha:]]+$",ss_nospace),]
+        noAb <- minDist[!grepl("[[:alpha:]] */[[:alpha:]]+$",ss_nospace),]
+        abUnits <- eda[abUnits, on = "ss_nospace"] ##merge
+        abUnits <- abUnits[,.(Temp = if(any(grepl("C4",edatopic))) paste0(ss_nospace,"_01") else ss_nospace, feasible = feasible[1]),
+                           by = .(bgc,ss_nospace,sppsplit,spp)]
+        abUnits[,ss_nospace := NULL]
+        setnames(abUnits,old = "Temp",new = "ss_nospace")
         minDist <- rbind(noAb,abUnits)
-        minDist[,ID := if(any(grepl("01", SS_NoSpace)) & Feasible[1] == 1) T else F, by = .(BGC)]
+        minDist[,ID := if(any(grepl("01", ss_nospace)) & feasible[1] == 1) T else F, by = .(bgc)]
         green <- minDist[(ID),]
-        green <- green[,.(Col = zonalOpt), by = .(BGC)]
+        green <- green[,.(Col = zonalOpt), by = .(bgc)]
         
         minDist <- minDist[ID == F,]
-        minDist[,ID := if(any(grepl("01", SS_NoSpace))) T else F, by = .(BGC)]
+        minDist[,ID := if(any(grepl("01", ss_nospace))) T else F, by = .(bgc)]
         blue <- minDist[(ID),]
-        blue <- blue[,.(Feasible = min(Feasible)), by = .(BGC)]
+        blue <- blue[,.(feasible = min(feasible)), by = .(bgc)]
         
         minDist <- minDist[ID == F,]
-        minEda <- eda[minDist, on = "SS_NoSpace"]
-        minEda <- minEda[,.(AvgEda = mean(SMR)), by = .(BGC,SS_NoSpace,Feasible)]
+        minEda <- eda[minDist, on = "ss_nospace"]
+        minEda <- minEda[,.(AvgEda = mean(smr)), by = .(bgc,ss_nospace,feasible)]
         minEda <- minEda[,.(Col = fifelse(all(AvgEda >= 3.5),"WET",
-                                          fifelse(all(AvgEda < 3.5), "DRY", splitOpt)), Feasible = min(Feasible)), by = .(BGC)]
+                                          fifelse(all(AvgEda < 3.5), "DRY", splitOpt)), feasible = min(feasible)), by = .(bgc)]
         temp <- minEda[Col == "DRY",]
         temp[,Col := NULL]
         blue <- rbind(blue,temp)
         red <- minEda[Col == "WET",]
-        minEda <- minEda[!Col %in% c("WET","DRY"),.(BGC,Col)]
-        blue[dryOpt, Col := i.Col, on = "Feasible"]
-        red[wetOpt, Col := i.Col, on = "Feasible"]
-        blue[,Feasible := NULL]
-        red[,Feasible := NULL]
+        minEda <- minEda[!Col %in% c("WET","DRY"),.(bgc,Col)]
+        blue[dryOpt, Col := i.Col, on = "feasible"]
+        red[wetOpt, Col := i.Col, on = "feasible"]
+        blue[,feasible := NULL]
+        red[,feasible := NULL]
         climSuit <- rbind(green,blue,red,minEda)
-        climSuit <- climSuit[!is.na(BGC),]
+        climSuit <- climSuit[!is.na(bgc),]
         
-        tf2 <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(4,5),
-                    .(SuitMax = min(Feasible)), by = .(BGC)]
+        tf2 <- feas[feasible %in% c(4,5),.(SuitMax = min(feasible)), by = .(bgc)]
         if(nrow(tf2) > 0){
             tf2[SuitMax == 4,Col := "#fbff00ff"]
             tf2[SuitMax == 5,Col := "#8300ffff"]
-            tf2 <- tf2[,.(BGC,Col)]
+            tf2 <- tf2[,.(bgc,Col)]
             climSuit <- rbind(climSuit, tf2)
         }
         return(climSuit)
@@ -534,18 +516,38 @@ server <- function(input, output) {
     
     ##Prepare BGC colour table for non-edatopic
     prepDatSimple <- reactive({
-        feas <- globalFeas$dat
-        feasMax <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3,4,5),
-                        .(SuitMax = min(Feasible)), by = .(BGC,SppSplit)]
+        QRY <- paste0("select bgc,ss_nospace,sppsplit,spp,",globalFeas$dat,
+                      " from feasorig where spp = '",substr(input$sppPick,1,2),
+                      "' and ",globalFeas$dat," in (1,2,3,4,5)")
+        d1 <- tryCatch({
+            dbGetQuery(con, QRY)
+        },
+        error = function(e){
+            invisible(lapply(dbListConnections(PostgreSQL()), dbDisconnect))
+            con <<- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "68.183.199.104", 
+                             port = 5432, dbname = "spp_feas")
+            dat <- dbGetQuery(con, QRY)
+            return(dat)
+        })
+        if(nrow(d1) == 0){
+            shinyalert(title = "Oops!",text = "There are no data for that species",
+                       type = "error",showConfirmButton = T)
+            QRY <- paste0("select bgc,ss_nospace,sppsplit,spp,",globalFeas$dat,
+                          " from feasorig where spp = 'Sx' and ",globalFeas$dat," in (1,2,3,4,5)")
+            d1 <- dbGetQuery(con, QRY)
+        }
+        feas <- as.data.table(d1)
+        setnames(feas, old = globalFeas$dat, new = "feasible")
+        feasMax <- feas[,.(SuitMax = min(feasible)), by = .(bgc,sppsplit)]
         if(input$type == "Presence/Absence"){
-            if(length(unique(feasMax$SppSplit)) > 1){
-                feasMax[,SppNum := as.numeric(as.factor(SppSplit))]
+            if(length(unique(feasMax$sppsplit)) > 1){
+                feasMax[,SppNum := as.numeric(as.factor(sppsplit))]
                 tempCol <- grRamp2(rescale(feasMax$SppNum,to = c(0,0.6)))
                 feasMax[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
-                temp <- unique(feasMax[,.(SppSplit,Col)])
+                temp <- unique(feasMax[,.(sppsplit,Col)])
                 
                 leg <- legend_element(
-                    variables = c(temp$SppSplit,"Added","Removed")
+                    variables = c(temp$sppsplit,"Added","Removed")
                     , colours = c(temp$Col,"#fbff00ff","#8300ffff")
                     , colour_type = "fill"
                     , variable_type = "category",
@@ -562,7 +564,7 @@ server <- function(input, output) {
                 feasMax[SuitMax == 5,Col := "#8300ffff"]
                 
                 leg <- legend_element(
-                    variables = c(feasMax$SppSplit[1],"Added","Removed")
+                    variables = c(feasMax$sppsplit[1],"Added","Removed")
                     , colours = c("#443e3dFF","#fbff00ff","#8300ffff")
                     , colour_type = "fill"
                     , variable_type = "category",
@@ -579,38 +581,45 @@ server <- function(input, output) {
             feasMax <- prepClimSuit()
             globalLeg$Legend <- climaticLeg
         }
-        feasMax[,Lab := BGC]
-        feasMax[,.(BGC,Col,Lab)]
+        feasMax[,Lab := bgc]
+        feasMax[,.(bgc,Col,Lab)]
+
     })
     
     ##Prepare BGC colours for edatopic option
     prepEdaDat <- reactive({
-        feas <- globalFeas$dat
+        QRY <- paste0("select bgc,ss_nospace,sppsplit,spp,",globalFeas$dat,
+                      " from feasorig where spp = '",substr(input$sppPick,1,2),
+                      "' and ",globalFeas$dat," in (1,2,3,4)")
+        feas <- as.data.table(dbGetQuery(con, QRY))
+        setnames(feas, old = globalFeas$dat, new = "feasible")        
         globalLeg$Legend <- edaLeg
         id <- as.numeric(input$edaplot_selected)
-        idSub <- idDat[ID == id,.(ID,Edatopic)]
-        edaSub <- eda[idSub, on = "Edatopic"]
-        feasSub <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3),]
-        feasSub <- feasSub[SS_NoSpace %chin% edaSub$SS_NoSpace,]
-        feasSub[,Lab := paste0(SS_NoSpace,": ", Feasible)]
-        feasSum <- feasSub[,.(FeasVal = mean(Feasible), Lab = paste(Lab, collapse = "<br>")), by = BGC]
+        idSub <- idDat[ID == id,.(ID,edatopic)]
+        edaSub <- eda[idSub, on = "edatopic"]
+        feasSub <- feas[ss_nospace %chin% edaSub$ss_nospace,]
+        feasSub[,Lab := paste0(ss_nospace,": ", feasible)]
+        feasSum <- feasSub[,.(FeasVal = mean(feasible), Lab = paste(Lab, collapse = "<br>")), by = bgc]
         tempCol <- grRamp(rescale(feasSum$FeasVal,to = c(0,1)))
         feasSum[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
-        feasSum[,.(BGC,Col,Lab)]
+        feasSum[,.(bgc,Col,Lab)]
     })
     
     ##join colours to small map
     mergeSmallDat <- reactive({
         #browser()
+        if(input$sppPick == "None"){
+            return(NULL)
+        }
         if(is.null(input$edaplot_selected)){
             feasDat <- prepDatSimple()
         }else{
             feasDat <- prepEdaDat()
         }
-        temp <- globalPoly$Small[feasDat, on = "BGC"]
+        temp <- globalPoly$Small[feasDat, on = "bgc"]
         temp <- temp[!is.na(BGC_Col),]
         if(nrow(temp) == 0){
-            shinyalert("Oh oh!","There are no suitable locations for this selection!", type = "error")
+            shinyalert("Oh oh!","There are no suitable locations for this selection! :(", type = "error")
             return(NULL)
         }else{
             temp <- temp[!ID %in% c(globalRendered$med,globalRendered$big),]
@@ -621,13 +630,16 @@ server <- function(input, output) {
     
     ##join colours to big map
     mergeMedDat <- function(tid){
+        if(input$sppPick == "None"){
+            return(NULL)
+        }
         if(is.null(input$edaplot_selected)){
             feasDat <- prepDatSimple()
         }else{
             feasDat <- prepEdaDat()
         }
         temp <- globalPoly$Big[ID %in% tid,]
-        temp <- temp[feasDat, on = "BGC"]
+        temp <- temp[feasDat, on = "bgc"]
         temp <- temp[!is.na(BGC_Col),]
         st_as_sf(temp)
     }
@@ -641,7 +653,7 @@ server <- function(input, output) {
         t1 <- st_intersects(grd_big, bnds) %>% as.data.frame()
         ids <- unique(c(t1$row.id,globalRendered$med))
         dat <- mergeMedDat(tid = ids)
-        if(nrow(dat) < 1) dat <- NULL
+        if(is.null(dat) || nrow(dat) < 1) dat <- NULL
         dat
     })
     
@@ -688,42 +700,46 @@ server <- function(input, output) {
         event <- input$map_polygon_click
         temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
         unit <- gsub("tooltip.{3}","",temp)
-        #browser()
         print(unit)
-        feas <- globalFeas$dat
+        #feas <- globalFeas$dat
         idx_row <- NULL
         idx_col <- NULL
+        QRY <- paste0("select bgc,ss_nospace,sppsplit,spp,",globalFeas$dat,
+                      " from feasorig where bgc = '",unit,"' and ",globalFeas$dat," in (1,2,3,4)")
+        feas <- as.data.table(dbGetQuery(con, QRY))
+        setnames(feas, old = globalFeas$dat, new = "feasible")   
         if(is.null(input$edaplot_selected)){
             if(input$type == "Climatic Suitability"){
-                tempFeas <- feas[BGC == unit & Feasible %in% c(1,2,3),]
-                tempEda <- eda[tempFeas, on = "SS_NoSpace"]
-                tempEda <- tempEda[!is.na(SMR),]
-                tempEda <- tempEda[,.(AvgSMR = mean(SMR)), by = .(SS_NoSpace,Feasible,SppSplit)]
-                tempEda[,SSType := fifelse(grepl("01",SS_NoSpace),"Zonal",fifelse(AvgSMR <= 3.5,"Dry",
+                tempFeas <- feas[feasible %in% c(1,2,3),]
+                tempEda <- eda[tempFeas, on = "ss_nospace"]
+                tempEda <- tempEda[!is.na(smr),]
+                tempEda <- tempEda[,.(AvgSMR = mean(smr)), by = .(ss_nospace,feasible,sppsplit)]
+                tempEda[,SSType := fifelse(grepl("01",ss_nospace),"Zonal",fifelse(AvgSMR <= 3.5,"Dry",
                                                                                   fifelse(AvgSMR > 4.1,"Wet","??")))]
-                tabOut <- dcast(tempEda, SSType ~ SppSplit, value.var = "Feasible", fun.aggregate = min)
+                tabOut <- dcast(tempEda, SSType ~ sppsplit, value.var = "feasible", fun.aggregate = min)
                 tabOut[tabOut == 0] <- NA
             }else{
-                feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3,4),
-                                .(SuitMax = min(Feasible)), by = .(SppSplit,BGC)]
-                feasMax <- feasMax[SppSplit != "X",]
-                tabOut <- data.table::dcast(feasMax, BGC ~ SppSplit, value.var = "SuitMax")
+                feasSub <- feas[sppsplit != "X",]
+                tabOut <- data.table::dcast(feasSub, ss_nospace ~ sppsplit,fun.aggregate = mean, value.var = "feasible")
+                tabOut[,lapply(.SD,as.integer),.SDcols = -"ss_nospace"]
             }
         }else{
             id <- as.numeric(input$edaplot_selected)
-            idSub <- idDat[ID == id,.(ID,Edatopic)]
-            edaSub <- eda[idSub, on = "Edatopic"]
-            edaSub <- edaSub[BGC == unit,]
-            dat <- feas[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
-            tabOut <- data.table::dcast(dat, SS_NoSpace ~ SppSplit, value.var = "Feasible", fun.aggregate = mean)
-            setnames(tabOut, old = c("SS_NoSpace"), new = c("BGC"))
+            idSub <- idDat[ID == id,.(ID,edatopic)]
+            edaSub <- eda[idSub, on = "edatopic"]
+            edaSub <- edaSub[bgc == unit,]
+            dat <- feas[ss_nospace %in% edaSub$ss_nospace & feasible %in% c(1,2,3,4),]
+            tabOut <- data.table::dcast(dat, ss_nospace ~ sppsplit, value.var = "feasible", fun.aggregate = mean)
+            tabOut[,lapply(.SD,as.integer),.SDcols = -"ss_nospace"]
             if(input$updatedfeas){
-                dat2 <- feasOrig[SS_NoSpace %in% edaSub$SS_NoSpace & Feasible %in% c(1,2,3),]
-                dat2 <- dat2[,.(SS_NoSpace,SppSplit,Feasible)]
-                setnames(dat2, old = "Feasible", new = "FeasOld")
-                comp <- merge(dat,dat2,on = c("SS_NoSpace","SppSplit"),all = T)
-                comp[,Same := (Feasible == FeasOld) & !is.na(Feasible) & !is.na(FeasOld)]
-                tabOrig <- data.table::dcast(comp, SS_NoSpace ~ SppSplit, value.var = "Same",fun.aggregate = function(x){x[1]})
+                QRY <- paste0("select ss_nospace,sppsplit,feasible from feasorig where bgc = '",
+                              unit,"' and feasible in (1,2,3,4)")
+                feasOrig <- as.data.table(dbGetQuery(con, QRY))
+                dat2 <- feasOrig[ss_nospace %in% edaSub$ss_nospace,]
+                setnames(dat2, old = "feasible", new = "FeasOld")
+                comp <- merge(dat,dat2,on = c("ss_nospace","sppsplit"),all = T)
+                comp[,Same := (feasible == FeasOld) & !is.na(feasible) & !is.na(FeasOld)]
+                tabOrig <- data.table::dcast(comp, ss_nospace ~ sppsplit, value.var = "Same",fun.aggregate = function(x){x[1]})
                 idx <- which(tabOrig == F, arr.ind = T)
                 idx_row <- unname(idx[,1] - 1)
                 idx_col <- unname(idx[,2] - 1)
@@ -753,8 +769,9 @@ server <- function(input, output) {
                 temp <- prepTable()
                 dat <- temp$dat
                 #browser()
-                rhandsontable(data = dat,col_highlight = temp$cIdx, row_highlight = temp$rIdx, spp_highlight = temp$sppCol) %>%
-                    hot_cols(renderer = "
+                rhandsontable(data = dat,col_highlight = temp$cIdx,
+                              row_highlight = temp$rIdx, spp_highlight = temp$sppCol) %>%
+                    hot_cols(format = "0", renderer = "
                 function(instance, td, row, col, prop, value, cellProperties) {
                 Handsontable.renderers.NumericRenderer.apply(this, arguments);
                 if (instance.params) {
@@ -790,43 +807,47 @@ server <- function(input, output) {
     ##compile and send updates to database
     sendToDb <- function(nme){
         dat <- as.data.table(hot_to_r(input$hot))
-        if(!is.null(input$edaplot_selected)){
-            feas <- globalFeas$dat
-            dat <- melt(dat, id.vars = "BGC", value.name = "Feas_New", variable.name = "Spp")
-            setnames(dat, old = c("BGC","Spp"), new = c("SS_NoSpace","SppSplit"))
-            datComb <- feas[dat, on = c("SS_NoSpace","SppSplit")]
-            datComb[,Spp := NULL]
-            datComb <- datComb[!is.na(Feas_New),]
-            datComb <- datComb[Feasible != Feas_New,]
-            datComb[,Modifier := nme]
-            setnames(datComb, c("bgc","unit","sppsplit","feasible","new","modifier"))
-            dbWriteTable(con, name = "edatope_updates", value = datComb, row.names = F, append = T)
-            shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
-        }
+        dat <- melt(dat, id.vars = "ss_nospace", value.name = "newfeas", variable.name = "sppsplit")
+        dat[,mod := nme]
+        dbWriteTable(con, "temp_update", dat, overwrite = T)
+        dbExecute(con,"UPDATE feasorig 
+                  SET newfeas = temp_update.newfeas,
+                  mod = temp_update.mod
+                  FROM temp_update
+                  WHERE feasorig.ss_nospace = temp_update.ss_nospace
+                  AND feasorig.sppsplit = temp_update.sppsplit")
+        dbExecute(con,"UPDATE feasorig
+                  SET newfeas = 5
+                  WHERE newfeas IS NULL
+                  AND feasible IS NOT NULL")
+        shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
+
     }
     
     output$hot_add <- renderRHandsontable({
         if(!is.null(input$map_polygon_click)){
-            spp <- substr(input$sppPick,1,2)
-            spp2 <- unique(feasOrig[Spp == spp, SppSplit])
+            # spp <- substr(input$sppPick,1,2)
+            # spp2 <- dbGetQuery(con,paste0("select distinct sppsplit from feasorig where spp = '",spp,"'"))[,1]
             event <- input$map_polygon_click
             temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
             unit <- gsub("tooltip.{3}","",temp)
-            edaSub <- unique(eda[BGC == unit,.(BGC,SS_NoSpace)])
-            temp <- as.data.table(expand.grid(edaSub$SS_NoSpace,spp2))
-            temp[,Val := NA_integer_]
-            outTab <- dcast(temp, Var1 ~ Var2, value.var = "Val")
-            setnames(outTab, old = "Var1",new = "SS_NoSpace")
-            rhandsontable(data = outTab)
+            edaSub <- unique(eda[bgc == unit,.(bgc,ss_nospace)])
+            temp <- data.table(ss_nospace = edaSub$ss_nospace, newfeas = NA_integer_)
+            rhandsontable(data = temp)
         }
     })
     
     observeEvent(input$addspp,{
         shinyalert(html = T,
                    text = tagList(
-                       h4("Add species by site unit, then click submit"),
-                       rHandsontableOutput("hot_add"),
-                       textInput("addsppMod",label = "Enter your initials:")
+                       h4("Select a species, add feasibility, then click submit"),
+                       pickerInput("sppPickAdd",
+                                   label = "",
+                                   choices = allSppNames,
+                                   selected = "Ba"), 
+                       fluidRow(column(6,rHandsontableOutput("hot_add")),
+                                column(6,textInput("addsppMod",label = "Enter your initials:"))),
+                       
                    ),
                    callbackR = addSppToDb,
                    showCancelButton = T,
@@ -837,65 +858,64 @@ server <- function(input, output) {
         if(x){
             dat <- hot_to_r(input$hot_add)
             dat <- as.data.table(dat)
-            feas <- globalFeas$dat
-            dat <- melt(dat, id.vars = "SS_NoSpace", value.name = "Feas_New", variable.name = "Spp")
-            setnames(dat, old = c("Spp"), new = c("SppSplit"))
-            datComb <- feas[dat, on = c("SS_NoSpace","SppSplit")]
-            datComb[,Spp := NULL]
-            datComb <- datComb[!is.na(Feas_New),]
-            datComb[,Modifier := input$addsppMod]
-            datComb[,BGC := gsub("/.*","",SS_NoSpace)]
-            setnames(datComb, c("bgc","unit","sppsplit","feasible","new","modifier"))
-            dbWriteTable(con, name = "edatope_updates", value = datComb, row.names = F, append = T)
+            dat2 <- data.table(bgc = gsub("/[[:digit:]]*","", dat$ss_nospace),
+                               ss_nospace = dat$ss_nospace,
+                               sppsplit = input$sppPickAdd,
+                               feasible = NA,spp = substr(input$sppPickAdd,1,2), newfeas = dat$newfeas, mod = input$addsppMod)
+            
+            dat2 <- dat2[!is.na(newfeas),]
+            dbWriteTable(con, name = "feasorig", value = dat2, append = T,row.names = F)
             shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
         }
     }
     
-    output$hot_delete <- renderRHandsontable({
-        if(!is.null(input$map_polygon_click)){
-            feas <- globalFeas$dat
-            event <- input$map_polygon_click
-            temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
-            unit <- gsub("tooltip.{3}","",temp)
-            feasMax <- feas[BGC == unit & Feasible %in% c(1,2,3,4),
-                            .(SuitMax = min(Feasible)), by = .(SppSplit,BGC)]
-            feasMax <- feasMax[SppSplit != "X",]
-            nSpp <- length(unique(feasMax$SppSplit))
-            temp <- matrix(data = rep(T,nSpp),nrow = 1, ncol = nSpp, byrow = T)
-            colnames(temp) <- unique(feasMax$SppSplit)
-            rhandsontable(data = temp)
-        }
-    })
-    
-    observeEvent(input$removespp,{
-        shinyalert(html = T,
-                   text = tagList(
-                       h4("Uncheck a species to remove"),
-                       rHandsontableOutput("hot_delete"),
-                       textInput("removesppMod",label = "Enter your initials:")
-                   ),
-                   callbackR = removeSppToDb,
-                   showCancelButton = T,
-                   showConfirmButton = T,
-                   size = "m")
-    })
-    
-    removeSppToDb <- function(x){
-        if(x){
-            event <- input$map_polygon_click
-            temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
-            unit <- gsub("tooltip.{3}","",temp)
-            dat <- hot_to_r(input$hot_delete)
-            toRemove <- colnames(dat)[dat[1,] == F]
-            temp <- feas[BGC == unit & SppSplit %in% toRemove,]
-            temp[,new := 5]
-            temp[,Modifier := input$removesppMod]
-            temp[,Spp := NULL]
-            setnames(temp, c("bgc","unit","sppsplit","feasible","new","modifier"))
-            dbWriteTable(con, name = "edatope_updates", value = temp, row.names = F, append = T)
-            shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
-        }
-    }
+    # output$hot_delete <- renderRHandsontable({
+    #     if(!is.null(input$map_polygon_click)){
+    #         event <- input$map_polygon_click
+    #         temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
+    #         unit <- gsub("tooltip.{3}","",temp)
+    #         QRY <- paste0("select ss_nospace,sppsplit,feasible from feasorig where bgc = '",
+    #                       unit,"' and feasible in (1,2,3,4)")
+    #         feas <- as.data.table(dbGetQuery(con, QRY))
+    #         feasMax <- feas[,.(SuitMax = min(feasible)), by = .(sppsplit)]
+    #         feasMax <- feasMax[sppsplit != "X",]
+    #         nSpp <- length(unique(feasMax$sppsplit))
+    #         temp <- matrix(data = rep(T,nSpp),nrow = 1, ncol = nSpp, byrow = T)
+    #         colnames(temp) <- unique(feasMax$sppsplit)
+    #         rhandsontable(data = temp)
+    #     }
+    # })
+    # 
+    # observeEvent(input$removespp,{
+    #     shinyalert(html = T,
+    #                text = tagList(
+    #                    h4("Uncheck a species to remove"),
+    #                    rHandsontableOutput("hot_delete"),
+    #                    textInput("removesppMod",label = "Enter your initials:")
+    #                ),
+    #                callbackR = removeSppToDb,
+    #                showCancelButton = T,
+    #                showConfirmButton = T,
+    #                size = "m")
+    # })
+    # 
+    # removeSppToDb <- function(x){
+    #     if(x){
+    #         event <- input$map_polygon_click
+    #         temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
+    #         unit <- gsub("tooltip.{3}","",temp)
+    #         dat <- hot_to_r(input$hot_delete)
+    #         toRemove <- colnames(dat)[dat[1,] == F]
+    #         dbExecute(con,paste0("UPDATE feasorig
+    #                   SET newfeas = 5,
+    #                   mod = '",input$removesppMod,
+    #                              "' WHERE feasorig.bgc = '",unit,
+    #                              "' AND feasorig.sppsplit IN ('",
+    #                              paste(toRemove, collapse = "','"),"')"))
+    # 
+    #         shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
+    #     }
+    # }
 
     ##render interactive edatopic grid
     output$edaplot <- renderGirafe({

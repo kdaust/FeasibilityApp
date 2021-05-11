@@ -1,0 +1,13 @@
+name: FeasibilityApp
+title: FeasibilityApp
+username:
+account: pnw-science
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3281379
+bundleId: 4565923
+url: https://pnw-science.shinyapps.io/FeasibilityApp/
+when: 1620316623.28499
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: AB_Tree_Plot_Locations.csv|appOld.R|BCTreeLocations.csv|dbSetup.R|README.md|SppCodes.csv|TileBEC.R|Tree species and codes_2.0_REVISED_DM_24March2020.xlsx|TreeSpp.csv|US_SppCross.csv|USA_Tree_Plot_Locations.csv|WNAv12_Subzones.qml|OldInputs/Edatopic_v11_22.csv|OldInputs/Feasibility_v11_22.csv|OldInputs/Tree_List_2021.csv
