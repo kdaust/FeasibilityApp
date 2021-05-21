@@ -1,12 +1,6 @@
 ## Source at start of FeasibilityApp
 ## Kiri Daust
 
-library(shiny)
-library(leaflet)
-library(leafgl)
-library(data.table)
-library(shinyWidgets)
-library(shinyjs)
 bcgov_tileserver <- "http://142.93.157.218/data/tiles/{z}/{x}/{y}.pbf"
 bcgov_tilelayer <- "BECMap"
 

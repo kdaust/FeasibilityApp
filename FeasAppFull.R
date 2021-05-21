@@ -1,5 +1,5 @@
 ###Kiri Daust
-###Nov 2020
+###May 2021
 
 library(shiny)
 library(mapdeck)
@@ -14,6 +14,8 @@ library(rhandsontable)
 library(shinyalert)
 library(RPostgreSQL)
 library(shinyjs)
+library(leafgl)
+library(leaflet)
 source("FeasAppSource.R")
 ##connect to database
 ###Read in climate summary data
@@ -62,6 +64,9 @@ allSppNames <- dbGetQuery(con,"select distinct sppsplit from feasorig")[,1]
 ##BGC colours
 load("subzones_colours_ref.rda")
 colnames(subzones_colours_ref) <- c("BGC","Col")
+subzTransparent <- copy(subzones_colours_ref)
+subzTransparent[,Col := "#FFFFFF00"]
+setnames(subzTransparent,c("bgc","Transparent"))
 
 eda <- dbGetQuery(con,"select * from eda")
 eda <- as.data.table(eda)
@@ -155,7 +160,7 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                                   column(9,
                                          useShinyjs(),
                                          leafletjs,
-                                        leafletOutput("map"),
+                                        leafglOutput("map", height = "700px"),
                                          br(),
                                          h3("Suitability data for selected polygon:"),
                                          p("Edit the feasibility values here. When you click submit, 
@@ -225,59 +230,52 @@ server <- function(input, output) {
     output$map <- renderLeaflet({
         leaflet() %>%
             setView(lng = -122.77222, lat = 51.2665, zoom = 6) %>%
-            addVectorGridTilesDev()
-            # addProviderTiles(leaflet::providers$CartoDB.PositronNoLabels, group = "Positron",
-            #                  options = leaflet::pathOptions(pane = "mapPane")) %>%
-            # addProviderTiles(leaflet::providers$CartoDB.DarkMatterNoLabels, group = "DarkMatter",
-            #                  options = leaflet::pathOptions(pane = "mapPane")) %>%
-            # addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Satellite",
-            #                  options = leaflet::pathOptions(pane = "mapPane"))
+            addProviderTiles(leaflet::providers$CartoDB.PositronNoLabels, group = "Positron",
+                             options = leaflet::pathOptions(pane = "mapPane")) %>%
+            addProviderTiles(leaflet::providers$CartoDB.DarkMatterNoLabels, group = "DarkMatter",
+                             options = leaflet::pathOptions(pane = "mapPane")) %>%
+            addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Satellite",
+                             options = leaflet::pathOptions(pane = "mapPane")) %>%
+            addVectorGridTilesDev() %>%
+            leaflet::addLayersControl(
+                baseGroups = c("Positron", "DarkMatter", "Satellite", "OpenStreetMap", "Hillshade"),
+                overlayGroups = c("Zones", "Subzones Variants", "Positron Labels", "DarkMatter Labels", "Mapbox Labels"),
+                position = "topright")
     })
     
-    # observeEvent({c(input$bgcLayer,input$wnaORbc)},{
-    #     if(!input$bgcLayer){
-    #         print("removing bgc")
-    #         leafletProxy("map") %>%
-    #             removeShape(layerId = "bgc_map")
-    #     }else{
-    #         dat = subzones_colours_ref
-    #         leafletProxy("map") %>%
-    #             invokeMethod(data = dat, method = "addGridTiles", dat$BGC, dat$Col)
-    #     }
-    # }, priority = 23)
+    observeEvent({c(input$bgcLayer,input$wnaORbc)},{
+        if(!input$bgcLayer){
+            print("removing bgc")
+            leafletProxy("map") %>%
+                removeShape(layerId = "bgc_map")
+        }else{
+            dat = subzones_colours_ref
+            leafletProxy("map") %>%
+                invokeMethod(data = dat, method = "addGridTiles", dat$BGC, dat$Col)
+        }
+    }, priority = 23)
     
-    # observeEvent({c(input$showtrees,
-    #                 input$sppPick,
-    #                 input$wnaORbc)},{
-    #     if(input$showtrees){
-    #         sppName <- substr(input$sppPick,1,2)
-    #         if(input$wnaORbc == "BC"){
-    #             QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"' and region = 'BC'")
-    #         }else{
-    #             QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"'")
-    #         }
-    #         
-    #         dat <- st_read(con,query = QRY)
-    #         if(nrow(dat) > 1){
-    #             mapdeck_update(map_id = "map") %>%
-    #                 clear_scatterplot(layer_id = "tree_points") %>%
-    #                 clear_scatterplot(layer_id = "tree_points2") %>%
-    #                 add_sf(data = dat,
-    #                         layer_id = "tree_points",
-    #                         fill_colour = "black",
-    #                        tooltip = "plotnum",
-    #                         radius = 1,
-    #                         radius_min_pixels = 5,
-    #                         radius_max_pixels = 10,
-    #                         focus_layer = F,
-    #                         update_view = F)
-    #         }
-    #     }else{
-    #         mapdeck_update(map_id = "map") %>%
-    #             clear_scatterplot(layer_id = "tree_points") %>%
-    #             clear_scatterplot(layer_id = "tree_points2")
-    #     }
-    # })
+    observeEvent({c(input$showtrees,
+                    input$sppPick,
+                    input$wnaORbc)},{
+        if(input$showtrees){
+            sppName <- substr(input$sppPick,1,2)
+            if(input$wnaORbc == "BC"){
+                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"' and region = 'BC'")
+            }else{
+                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"'")
+            }
+
+            dat <- st_read(con,query = QRY)
+            if(nrow(dat) > 1){
+                leafletProxy("map") %>%
+                    addGlPoints(data = dat,layerId = "tree_points",popup = ~ plotnum)
+            }
+        }else{
+            leafletProxy("map") %>%
+                removeGlPoints("tree_points")
+        }
+    })
     
     ##Prepare BGC colour table for non-edatopic
     prepDatSimple <- reactive({
@@ -425,44 +423,6 @@ server <- function(input, output) {
     })
     
     
-    # ##join colours to small map
-    # mergeSmallDat <- reactive({
-    #     #browser()
-    #     if(input$sppPick == "None"){
-    #         return(NULL)
-    #     }
-    #     if(is.null(input$edaplot_selected)){
-    #         feasDat <- prepDatSimple()
-    #     }else{
-    #         feasDat <- prepEdaDat()
-    #     }
-    #     temp <- globalPoly$Small[feasDat, on = "bgc"]
-    #     temp <- temp[!is.na(BGC_Col),]
-    #     if(nrow(temp) == 0){
-    #         shinyalert("Oh oh!","There are no suitable locations for this selection! :(", type = "error")
-    #         return(NULL)
-    #     }else{
-    #         temp <- temp[!ID %in% c(globalRendered$med,globalRendered$big),]
-    #         st_as_sf(temp)
-    #     }
-    #     
-    # })
-    
-    # ##join colours to big map
-    # mergeMedDat <- function(tid){
-    #     if(input$sppPick == "None"){
-    #         return(NULL)
-    #     }
-    #     if(is.null(input$edaplot_selected)){
-    #         feasDat <- prepDatSimple()
-    #     }else{
-    #         feasDat <- prepEdaDat()
-    #     }
-    #     temp <- globalPoly$Big[ID %in% tid,]
-    #     temp <- temp[feasDat, on = "bgc"]
-    #     temp <- temp[!is.na(BGC_Col),]
-    #     st_as_sf(temp)
-    # }
     
     observeEvent({c(
         input$sppPick,
@@ -480,12 +440,15 @@ server <- function(input, output) {
         dat <- NULL
     }
     print("Rendering map")
+    dat <- dat[subzTransparent, on = "bgc"]
+    dat[is.na(Col),Col := Transparent]
+    dat[is.na(Lab),Lab := bgc]
     if(!is.null(dat)){
         leafletProxy("map") %>%
             invokeMethod(data = dat, method = "addGridTiles", dat$bgc, dat$Col)
     }else{
-        # leafletProxy("map") %>%
-        #     removeShape(layer_id = "bec_subz")
+        leafletProxy("map") %>%
+            removeShape(layer_id = "bec_subz")
     }
 
 }, priority = 15)
