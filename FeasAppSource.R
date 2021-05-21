@@ -43,7 +43,7 @@ jscode <- paste0('window.LeafletWidget.methods.addGridTiles = function(BGC,Colou
                                      lfPane, colorMap, prop, id) {
         return {
           vectorTileLayerName: layerName,
-          interactive: activ, // makes it able to trigger js events like click
+          interactive: true, // makes it able to trigger js events like click
           vectorTileLayerStyles: {
             [layerId]: function(properties, zoom) {
               return {
@@ -69,7 +69,9 @@ jscode <- paste0('window.LeafletWidget.methods.addGridTiles = function(BGC,Colou
       )
       
       this.layerManager.addLayer(subzLayer, "tile", "bec_subz", "Subzones Variants")
-      
+      subzLayer.on("click", function(e){
+        Shiny.setInputValue("bgc_click",e.layer.properties.MAP_LABEL);
+      });
       subzLayer.bindTooltip(function(e) {
         return e.properties.MAP_LABEL
       }, {sticky: true, textsize: "10px", opacity: 1})

@@ -57,19 +57,6 @@ for(nm in c("Conifer_BC","Broadleaf_BC","Conifer_Native","Broadleaf_Native")){
     sppList[[nm]] <- temp
 }
 allSppNames <- dbGetQuery(con,"select distinct sppsplit from feasorig")[,1]
-# bc_init <- st_read(dsn = "./inputs/BC_Init.gpkg")
-# colnames(bc_init)[1] <- "bgc"
-# bc_init <- as.data.table(bc_init)
-# bc_init[cols, BGC_Col := i.Col, on = "bgc"]
-# wna_init <- st_read(dsn = "./inputs/WNA_Small_Tiled.gpkg")
-# colnames(wna_init)[1] <- "bgc"
-# wna_init <- as.data.table(wna_init)
-# wna_init[cols, BGC_Col := i.Col, on = "bgc"]
-# wna_med <- st_read(dsn = "./inputs/WNA_Tiled_12_BC.gpkg")
-# colnames(wna_med)[1] <- "bgc"
-# wna_med <- as.data.table(wna_med)
-# wna_med[cols, BGC_Col := i.Col, on = "bgc"]
-# grd_big <- st_read(dsn = "./inputs/WNA_GrdID_900.gpkg") %>% st_transform(4326)
 
 ##max suitability colours
 ##BGC colours
@@ -168,10 +155,7 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                                   column(9,
                                          useShinyjs(),
                                          leafletjs,
-                                         withSpinner(
-                                             leafletOutput("map", height = 700),
-                                             type = 6
-                                         ),
+                                        leafletOutput("map"),
                                          br(),
                                          h3("Suitability data for selected polygon:"),
                                          p("Edit the feasibility values here. When you click submit, 
@@ -194,8 +178,6 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
 
 server <- function(input, output) {
     globalFeas <- reactiveValues(dat = "feasible")
-    globalRendered <- reactiveValues(med = vector("numeric"), big = vector("numeric"))
-    globalPoly <- reactiveValues(Small = bc_init, Big = wna_med[WNABC == "BC",])
     globalLocation <- reactiveValues(loc = c(-124.72,54.56), zoom = 4.5)
     globalLeg <- reactiveValues(Legend = climaticLeg)
     
@@ -220,13 +202,9 @@ server <- function(input, output) {
     
     observeEvent(input$wnaORbc,{
         if(input$wnaORbc == "WNA"){
-            globalPoly$Small <- wna_init
-            globalPoly$Big <- wna_med
             globalLocation$loc = c(-116.97,49)
             globalLocation$zoom = 3.5
         }else{
-            globalPoly$Small <- bc_init
-            globalPoly$Big <- wna_med[WNABC == "BC",]
             globalLocation$loc = c(-124.72,54.56)
             globalLocation$zoom = 4.5
         }
@@ -247,26 +225,26 @@ server <- function(input, output) {
     output$map <- renderLeaflet({
         leaflet() %>%
             setView(lng = -122.77222, lat = 51.2665, zoom = 6) %>%
-            addVectorGridTilesDev() %>%
-            addProviderTiles(leaflet::providers$CartoDB.PositronNoLabels, group = "Positron",
-                             options = leaflet::pathOptions(pane = "mapPane")) %>%
-            addProviderTiles(leaflet::providers$CartoDB.DarkMatterNoLabels, group = "DarkMatter",
-                             options = leaflet::pathOptions(pane = "mapPane")) %>%
-            addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Satellite",
-                             options = leaflet::pathOptions(pane = "mapPane"))
+            addVectorGridTilesDev()
+            # addProviderTiles(leaflet::providers$CartoDB.PositronNoLabels, group = "Positron",
+            #                  options = leaflet::pathOptions(pane = "mapPane")) %>%
+            # addProviderTiles(leaflet::providers$CartoDB.DarkMatterNoLabels, group = "DarkMatter",
+            #                  options = leaflet::pathOptions(pane = "mapPane")) %>%
+            # addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Satellite",
+            #                  options = leaflet::pathOptions(pane = "mapPane"))
     })
     
-    observeEvent({c(input$bgcLayer,input$wnaORbc)},{
-        if(!input$bgcLayer){
-            print("removing bgc")
-            leafletProxy("map") %>%
-                removeShape(layerId = "bgc_map")
-        }else{
-            dat = subzones_colours_ref
-            leafletProxy("map") %>%
-                invokeMethod(data = dat, method = "addGridTiles", dat$BGC, dat$Col)
-        }
-    }, priority = 23)
+    # observeEvent({c(input$bgcLayer,input$wnaORbc)},{
+    #     if(!input$bgcLayer){
+    #         print("removing bgc")
+    #         leafletProxy("map") %>%
+    #             removeShape(layerId = "bgc_map")
+    #     }else{
+    #         dat = subzones_colours_ref
+    #         leafletProxy("map") %>%
+    #             invokeMethod(data = dat, method = "addGridTiles", dat$BGC, dat$Col)
+    #     }
+    # }, priority = 23)
     
     # observeEvent({c(input$showtrees,
     #                 input$sppPick,
@@ -506,17 +484,15 @@ server <- function(input, output) {
         leafletProxy("map") %>%
             invokeMethod(data = dat, method = "addGridTiles", dat$bgc, dat$Col)
     }else{
-        leafletProxy("map") %>%
-            removeShape(layer_id = "bec_subz")
+        # leafletProxy("map") %>%
+        #     removeShape(layer_id = "bec_subz")
     }
 
 }, priority = 15)
 
     output$tableBGC <- renderUI({
-        event <- input$map_polygon_click
-        if(!is.null(event)){
-            temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
-            unit <- gsub("tooltip.{3}","",temp)
+        unit <- input$bgc_click
+        if(!is.null(unit)){
             tagList(
                 h3(paste0("Feasibility for ",unit)),
                 br()
@@ -526,11 +502,8 @@ server <- function(input, output) {
     
     ##prepare suitability table when polygon clicked
     prepTable <- reactive({
-        event <- input$map_polygon_click
-        temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
-        unit <- gsub("tooltip.{3}","",temp)
+        unit <- input$bgc_click
         print(unit)
-        #feas <- globalFeas$dat
         idx_row <- NULL
         idx_col <- NULL
         QRY <- paste0("select bgc,ss_nospace,sppsplit,spp,",globalFeas$dat,
@@ -589,11 +562,11 @@ server <- function(input, output) {
     })
     
     ##render suitability table, colour updated cells
-    observeEvent({c(input$map_polygon_click, 
+    observeEvent({c(input$bgc_click, 
                     input$edaplot_selected,
                     input$sppPick,
                     input$updatedfeas)},{
-        if(!is.null(input$map_polygon_click)){
+        if(!is.null(input$bgc_click)){
             output$hot <- renderRHandsontable({
                 temp <- prepTable()
                 dat <- temp$dat
@@ -654,12 +627,8 @@ server <- function(input, output) {
     }
     
     output$hot_add <- renderRHandsontable({
-        if(!is.null(input$map_polygon_click)){
-            # spp <- substr(input$sppPick,1,2)
-            # spp2 <- dbGetQuery(con,paste0("select distinct sppsplit from feasorig where spp = '",spp,"'"))[,1]
-            event <- input$map_polygon_click
-            temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
-            unit <- gsub("tooltip.{3}","",temp)
+        if(!is.null(input$bgc_click)){
+            unit <- input$bgc_click
             edaSub <- unique(eda[bgc == unit,.(bgc,ss_nospace)])
             temp <- data.table(ss_nospace = edaSub$ss_nospace, newfeas = NA_integer_)
             rhandsontable(data = temp)
@@ -697,54 +666,6 @@ server <- function(input, output) {
             shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
         }
     }
-    
-    # output$hot_delete <- renderRHandsontable({
-    #     if(!is.null(input$map_polygon_click)){
-    #         event <- input$map_polygon_click
-    #         temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
-    #         unit <- gsub("tooltip.{3}","",temp)
-    #         QRY <- paste0("select ss_nospace,sppsplit,feasible from feasorig where bgc = '",
-    #                       unit,"' and feasible in (1,2,3,4)")
-    #         feas <- as.data.table(dbGetQuery(con, QRY))
-    #         feasMax <- feas[,.(SuitMax = min(feasible)), by = .(sppsplit)]
-    #         feasMax <- feasMax[sppsplit != "X",]
-    #         nSpp <- length(unique(feasMax$sppsplit))
-    #         temp <- matrix(data = rep(T,nSpp),nrow = 1, ncol = nSpp, byrow = T)
-    #         colnames(temp) <- unique(feasMax$sppsplit)
-    #         rhandsontable(data = temp)
-    #     }
-    # })
-    # 
-    # observeEvent(input$removespp,{
-    #     shinyalert(html = T,
-    #                text = tagList(
-    #                    h4("Uncheck a species to remove"),
-    #                    rHandsontableOutput("hot_delete"),
-    #                    textInput("removesppMod",label = "Enter your initials:")
-    #                ),
-    #                callbackR = removeSppToDb,
-    #                showCancelButton = T,
-    #                showConfirmButton = T,
-    #                size = "m")
-    # })
-    # 
-    # removeSppToDb <- function(x){
-    #     if(x){
-    #         event <- input$map_polygon_click
-    #         temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?_?[[:upper:]]{,2}",event))
-    #         unit <- gsub("tooltip.{3}","",temp)
-    #         dat <- hot_to_r(input$hot_delete)
-    #         toRemove <- colnames(dat)[dat[1,] == F]
-    #         dbExecute(con,paste0("UPDATE feasorig
-    #                   SET newfeas = 5,
-    #                   mod = '",input$removesppMod,
-    #                              "' WHERE feasorig.bgc = '",unit,
-    #                              "' AND feasorig.sppsplit IN ('",
-    #                              paste(toRemove, collapse = "','"),"')"))
-    # 
-    #         shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "dbmessage")
-    #     }
-    # }
 
     ##render interactive edatopic grid
     output$edaplot <- renderGirafe({
@@ -767,14 +688,6 @@ server <- function(input, output) {
                width_svg = 4, height_svg = 7)
     })
     
-    # observeEvent(input$map_polygon_click, {
-    #     event <- input$map_polygon_click
-    #     temp <- regmatches(event,regexpr("tooltip.{5}[[:upper:]]*[[:lower:]]*[[:digit:]]?",event))
-    #     unit <- gsub("tooltip.{3}","",temp)
-    #     output$temp <- renderText({
-    #         paste0("Current unit: ", unit)
-    #     })
-    # })
     
     ##table caption
     output$tableInfo <- renderText({

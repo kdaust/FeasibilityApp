@@ -78,7 +78,7 @@ js <- paste0('window.LeafletWidget.methods.addGridTiles = function(BGC,Colour) {
       
       this.layerManager.addLayer(subzLayer, "tile", "bec_subz", "Subzones Variants")
       subzLayer.on("click", function(e){
-        console.log(e.layer.properties.MAP_LABEL);
+        Shiny.setInputValue("bgc_click",e.layer.properties.MAP_LABEL);
       });
       subzLayer.bindTooltip(function(e) {
         return e.properties.MAP_LABEL
@@ -148,9 +148,9 @@ server <- function(input, output) {
       invokeMethod(data = dat, method = "addGridTiles", dat$BGC, dat$Col)
   })
   
-  observeEvent(input$map_click,{
+  observeEvent(input$bgc_click,{
     output$textout <- renderText({
-      input$map_shape_click
+      input$bgc_click
     })
     print("click!")
   })
