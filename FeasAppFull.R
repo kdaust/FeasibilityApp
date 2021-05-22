@@ -76,18 +76,18 @@ wetOpt <- data.table(feasible = c(1,2,3), Col = c("#c24f00ff","#cd804bff","#fbbd
 splitOpt <- "#df00a9ff"
 dryOpt <- data.table(feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8fdbff"))
 
-##legends
-climaticLeg <- list(
-    labels = c("Climatic Optimum","Wet Site Optimum","Dry Site Optimum","Bimodal Feasibility","Off-site Addition","Removed from CFRG"),
-    colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff"),
-    title = "Climatic Feasibility"
-)
-
-edaLeg <- list(
-    labels = c("Poor Feasibility","Good Feasibility"),
-    colours = c(edaMinCol,edaMaxCol),
-    title = "Edatopic Feasibility"
-)
+# ##legends
+# climaticLeg <- list(
+#     labels = c("Climatic Optimum","Wet Site Optimum","Dry Site Optimum","Bimodal Feasibility","Off-site Addition","Removed from CFRG"),
+#     colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff"),
+#     title = "Climatic Feasibility"
+# )
+# 
+# edaLeg <- list(
+#     labels = c("Poor Feasibility","Good Feasibility"),
+#     colours = c(edaMinCol,edaMaxCol),
+#     title = "Edatopic Feasibility"
+# )
 
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
 
@@ -169,7 +169,7 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
 server <- function(input, output) {
     globalFeas <- reactiveValues(dat = "feasible")
     globalLocation <- reactiveValues(loc = c(-124.72,54.56), zoom = 4.5)
-    globalLeg <- reactiveValues(Legend = climaticLeg)
+    #globalLeg <- reactiveValues(Legend = climaticLeg)
     
     observeEvent(input$showinstr,{
         shinyalert(title = "Instructions",html = T,text = instr)
@@ -289,12 +289,12 @@ server <- function(input, output) {
                 feasMax[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
                 temp <- unique(feasMax[,.(sppsplit,Col)])
                 
-                PALeg <- list(
-                    labels = c(temp$sppsplit,"Added","Removed"),
-                    colours = c(temp$Col,"#fbff00ff","#8300ffff"),
-                    title = "Presence/Absence"
-                )
-                globalLeg$Legend <- PALeg
+                # PALeg <- list(
+                #     labels = c(temp$sppsplit,"Added","Removed"),
+                #     colours = c(temp$Col,"#fbff00ff","#8300ffff"),
+                #     title = "Presence/Absence"
+                # )
+                # globalLeg$Legend <- PALeg
                 
                 feasMax[SuitMax == 4,Col := "#fbff00ff"]
                 feasMax[SuitMax == 5,Col := "#8300ffff"]
@@ -302,19 +302,19 @@ server <- function(input, output) {
                 feasMax[,Col := "#443e3dFF"]
                 feasMax[SuitMax == 4,Col := "#fbff00ff"]
                 feasMax[SuitMax == 5,Col := "#8300ffff"]
-                PALeg <- list(
-                    labels = c(temp$sppsplit[1],"Added","Removed"),
-                    colours = c("#443e3dFF","#fbff00ff","#8300ffff"),
-                    title = "Presence/Absence"
-                )
-                globalLeg$Legend <- PALeg
+                # PALeg <- list(
+                #     labels = c(temp$sppsplit[1],"Added","Removed"),
+                #     colours = c("#443e3dFF","#fbff00ff","#8300ffff"),
+                #     title = "Presence/Absence"
+                # )
+                # globalLeg$Legend <- PALeg
             }
         }else if(input$type == "Max Suit"){
             feasMax[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
-            globalLeg$Legend <- maxSuitLeg
+            #globalLeg$Legend <- maxSuitLeg
         }else{
             feasMax <- prepClimSuit()
-            globalLeg$Legend <- climaticLeg
+            #globalLeg$Legend <- climaticLeg
         }
         feasMax[,Lab := bgc]
         feasMax[,.(bgc,Col,Lab)]
@@ -328,7 +328,7 @@ server <- function(input, output) {
                       "' and ",globalFeas$dat," in (1,2,3,4)")
         feas <- as.data.table(dbGetQuery(con, QRY))
         setnames(feas, old = globalFeas$dat, new = "feasible")        
-        globalLeg$Legend <- edaLeg
+        #globalLeg$Legend <- edaLeg
         id <- as.numeric(input$edaplot_selected)
         idSub <- idDat[ID == id,.(ID,edatopic)]
         edaSub <- eda[idSub, on = "edatopic"]
