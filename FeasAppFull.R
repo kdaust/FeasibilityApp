@@ -2,11 +2,9 @@
 ###May 2021
 
 library(shiny)
-library(mapdeck)
 library(sf)
 library(data.table)
 library(shinyWidgets)
-library(shinycssloaders)
 library(ggplot2)
 library(ggiraph)
 library(scales)
@@ -89,7 +87,7 @@ dryOpt <- data.table(feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8f
 #     title = "Edatopic Feasibility"
 # )
 
-set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
+#set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
 
 instr <- tagList(
     p("To use this tool:"),
