@@ -62,8 +62,7 @@ allSppNames <- dbGetQuery(con,"select distinct sppsplit from feasorig")[,1]
 
 ##max suitability colours
 ##BGC colours
-load("subzones_colours_ref.rda")
-colnames(subzones_colours_ref) <- c("BGC","Col")
+
 subzTransparent <- copy(subzones_colours_ref)
 subzTransparent[,Col := "#FFFFFF00"]
 setnames(subzTransparent,c("bgc","Transparent"))
@@ -151,25 +150,24 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                                                       choices = c("BC","WNA"),
                                                       inline = T,
                                                       selected = "BC"),
-
-                                         switchInput("bgcLayer",label = "Show BGC",value = F,labelWidth = "80px"),
                                          switchInput("updatedfeas","Updated Feas",value = F, labelWidth = "100px"),
                                          switchInput("showtrees",label = "Show Plots", value = F, labelWidth = "100px")
                                          
                                   ),
                                   column(9,
                                          useShinyjs(),
-                                         leafletjs,
+                                         leafletjs_feas,
                                         leafglOutput("map", height = "700px"),
                                          br(),
                                          h3("Suitability data for selected polygon:"),
                                          p("Edit the feasibility values here. When you click submit, 
                                             the updated values will be sent to a database. If you are looking
                                            at updated values, they will be shown with a pink background on the table."),
-                                         textOutput("tableInfo"),
+
                                          fluidRow(
                                              uiOutput("tableBGC"),
                                              rHandsontableOutput("hot"),
+                                             br(),
                                              hidden(actionBttn("submitdat", label = "Submit Changes!")),
                                              hidden(actionBttn("addspp","Add Species"))
                                          )
@@ -232,29 +230,24 @@ server <- function(input, output) {
             setView(lng = -122.77222, lat = 51.2665, zoom = 6) %>%
             addProviderTiles(leaflet::providers$CartoDB.PositronNoLabels, group = "Positron",
                              options = leaflet::pathOptions(pane = "mapPane")) %>%
-            addProviderTiles(leaflet::providers$CartoDB.DarkMatterNoLabels, group = "DarkMatter",
-                             options = leaflet::pathOptions(pane = "mapPane")) %>%
-            addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Satellite",
-                             options = leaflet::pathOptions(pane = "mapPane")) %>%
-            addVectorGridTilesDev() %>%
+            addBGCTiles() %>%
             leaflet::addLayersControl(
-                baseGroups = c("Positron", "DarkMatter", "Satellite", "OpenStreetMap", "Hillshade"),
-                overlayGroups = c("Zones", "Subzones Variants", "Positron Labels", "DarkMatter Labels", "Mapbox Labels"),
+                baseGroups = c("Positron"),
+                overlayGroups = c("BGCs"),
                 position = "topright")
     })
     
-    observeEvent({c(input$bgcLayer,input$wnaORbc)},{
-        if(!input$bgcLayer){
-            print("removing bgc")
-            leafletProxy("map") %>%
-                removeShape(layerId = "bgc_map")
-        }else{
-            dat = subzones_colours_ref
-            leafletProxy("map") %>%
-                invokeMethod(data = dat, method = "addGridTiles", dat$BGC, dat$Col)
-        }
-    }, priority = 23)
-    
+    # observeEvent({c(input$bgcLayer,input$wnaORbc)},{
+    #     if(!input$bgcLayer){
+    #         print("removing bgc")
+    #         leafletProxy("map") %>%
+    #             hideGroup("BGCs")
+    #     }else{
+    #         leafletProxy("map") %>%
+    #             showGroup("BGCs")
+    #     }
+    # }, priority = 23)
+    # 
     observeEvent({c(input$showtrees,
                     input$sppPick,
                     input$wnaORbc)},{
@@ -445,10 +438,10 @@ server <- function(input, output) {
     dat[is.na(Lab),Lab := bgc]
     if(!is.null(dat)){
         leafletProxy("map") %>%
-            invokeMethod(data = dat, method = "addGridTiles", dat$bgc, dat$Col)
+            invokeMethod(data = dat, method = "addGridTiles", dat$bgc, dat$Col,dat$Lab)
     }else{
         leafletProxy("map") %>%
-            removeShape(layer_id = "bec_subz")
+            removeShape(layer_id = "BECMap")
     }
 
 }, priority = 15)
