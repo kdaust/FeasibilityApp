@@ -77,30 +77,17 @@ splitOpt <- "#df00a9ff"
 dryOpt <- data.table(feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8fdbff"))
 
 ##legends
-leg <- legend_element(
-    variables = c("Climatic Optimum","Wet Site Optimum","Dry Site Optimum","Bimodal Feasibility","Off-site Addition","Removed from CFRG")
-    , colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff")
-    , colour_type = "fill"
-    , variable_type = "category"
-    , title = "Climatic Feasibility"
+climaticLeg <- list(
+    labels = c("Climatic Optimum","Wet Site Optimum","Dry Site Optimum","Bimodal Feasibility","Off-site Addition","Removed from CFRG"),
+    colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff"),
+    title = "Climatic Feasibility"
 )
-climaticLeg <- mapdeck_legend(leg)
-leg <- legend_element(
-    variables = c("Feas 1","Feas 2","Feas 3")
-    , colours = suitcols$Col
-    , colour_type = "fill"
-    , variable_type = "category"
-    , title = "Best Feasibility"
-)
-maxSuitLeg <- mapdeck_legend(leg)
-leg <- legend_element(
-    variables = c("Poor Feasibility","Good Feasibility")
-    , colours = c(edaMinCol,edaMaxCol)
-    , colour_type = "fill"
-    , variable_type = "gradient",
+
+edaLeg <- list(
+    labels = c("Poor Feasibility","Good Feasibility"),
+    colours = c(edaMinCol,edaMaxCol),
     title = "Edatopic Feasibility"
 )
-edaLeg <- mapdeck_legend(leg)
 
 set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
 
@@ -302,15 +289,12 @@ server <- function(input, output) {
                 feasMax[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
                 temp <- unique(feasMax[,.(sppsplit,Col)])
                 
-                # leg <- legend_element(
-                #     variables = c(temp$sppsplit,"Added","Removed")
-                #     , colours = c(temp$Col,"#fbff00ff","#8300ffff")
-                #     , colour_type = "fill"
-                #     , variable_type = "category",
-                #     title = "Presence/Absence"
-                # )
-                # PALeg <- mapdeck_legend(leg)
-                # globalLeg$Legend <- PALeg
+                PALeg <- list(
+                    labels = c(temp$sppsplit,"Added","Removed"),
+                    colours = c(temp$Col,"#fbff00ff","#8300ffff"),
+                    title = "Presence/Absence"
+                )
+                globalLeg$Legend <- PALeg
                 
                 feasMax[SuitMax == 4,Col := "#fbff00ff"]
                 feasMax[SuitMax == 5,Col := "#8300ffff"]
@@ -318,16 +302,12 @@ server <- function(input, output) {
                 feasMax[,Col := "#443e3dFF"]
                 feasMax[SuitMax == 4,Col := "#fbff00ff"]
                 feasMax[SuitMax == 5,Col := "#8300ffff"]
-                
-                # leg <- legend_element(
-                #     variables = c(feasMax$sppsplit[1],"Added","Removed")
-                #     , colours = c("#443e3dFF","#fbff00ff","#8300ffff")
-                #     , colour_type = "fill"
-                #     , variable_type = "category",
-                #     title = "Presence/Absence"
-                # )
-                # PALeg <- mapdeck_legend(leg)
-                # globalLeg$Legend <- PALeg
+                PALeg <- list(
+                    labels = c(temp$sppsplit[1],"Added","Removed"),
+                    colours = c("#443e3dFF","#fbff00ff","#8300ffff"),
+                    title = "Presence/Absence"
+                )
+                globalLeg$Legend <- PALeg
             }
         }else if(input$type == "Max Suit"){
             feasMax[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
