@@ -38,10 +38,6 @@ idDat <- as.data.table(idDat)
 setorder(idDat,SMR,SNR)
 idDat[,ID := c(5,5,5,10,10,4,4,4,9,9,4,4,4,9,9,3,3,3,8,8,3,3,3,8,8,2,2,2,7,7,2,2,2,7,7,1,1,1,6,6)]
 idDat[,edatopic := paste0(SNR,SMR)]
-cols <- fread("./inputs/WNAv12_HexColours.csv")
-setnames(cols, c("bgc","Col"))
-alpha <- "4D"
-cols[,Col := paste0(Col,alpha)]
 edaMaxCol <- "#00fa00ff"
 edaMinCol <- "#fa0000ff"
 grRamp <- colorRamp(c(edaMaxCol,edaMinCol),alpha = T) ##colour ramp for gray values

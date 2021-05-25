@@ -8,6 +8,7 @@ analogsea::droplet_upload(server, "./app.R", "/srv/shiny-server/feasibility/app.
 analogsea::droplet_upload(server, "./FeasAppSource.R", "/srv/shiny-server/feasibility/FeasAppSource.R")
 analogsea::droplet_upload(server, "./www", "/srv/shiny-server/feasibility")
 analogsea::droplet_upload(server, "./htmlwidgets", "/srv/shiny-server/feasibility")
+analogsea::droplet_upload(server, "./inputs/", "/srv/shiny-server/feasibility")
 analogsea::droplet_upload(server, "./subzones_colours_ref.rda", "/srv/shiny-server/feasibility/subzones_colours_ref.rda")
 analogsea::droplet_ssh(server, "chown -R shiny:shiny /srv/shiny-server")
 analogsea::droplet_ssh(server, "systemctl restart shiny-server")

@@ -13,7 +13,7 @@ dbSafeNames = function(names) {
   names
 }
 
-feas <- fread("./OldInputs/Feasibility_v11_22.csv")
+feas <- fread("./inputs/Feasibility_v12_1.csv")
 feas <- feas[,.(BGC,SS_NoSpace,Spp,Feasible)]
 setnames(feas, old = "Spp",new = "SppSplit")
 feas[,Spp := SppSplit]
@@ -27,17 +27,18 @@ setnames(feas,c("bgc","ss_nospace","sppsplit","feasible","spp"))
 feas[,newfeas := feasible]
 feas[,mod := NA]
 
-eda <- fread("./OldInputs/Edatopic_v11_22.csv")
+eda <- fread("./inputs/Edatopic_v12_1.csv")
 eda <- eda[is.na(Special),.(BGC,SS_NoSpace,Edatopic)]
 eda[,SMR := as.numeric(gsub("[[:alpha:]]","", Edatopic))]
 feas <- feas[ss_nospace %chin% eda$SS_NoSpace,]
 setnames(eda,dbSafeNames(colnames(eda)))
 
+dbExecute(con,"DROP TABLE feasorig")
 dbWriteTable(con, name = "feasorig", value = feas,row.names = F)
 dbExecute(con,"CREATE INDEX ON feasorig(bgc,sppsplit)")
 dbExecute(con,"CREATE INDEX ON feasorig(spp)")
 
-
+dbExecute(con, "DROP TABLE eda")
 dbWriteTable(con, name = "eda", value = eda,row.names = F)
 dbExecute(con,"CREATE INDEX ON eda(bgc)")
 dbDisconnect(con)

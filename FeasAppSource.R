@@ -1,10 +1,10 @@
 ## Source at start of FeasibilityApp
 ## Kiri Daust
 
-bcgov_tileserver <- "http://142.93.157.218/data/tiles/{z}/{x}/{y}.pbf"
-bcgov_tilelayer <- "BECMap"
-load("subzones_colours_ref.rda")
-colnames(subzones_colours_ref) <- c("BGC","Col")
+bcgov_tileserver <- "http://159.203.20.90/data/tiles/{z}/{x}/{y}.pbf"
+bcgov_tilelayer <- "WNA_MAP"
+subzones_colours_ref <- fread("WNA_v12_HexCols.csv")
+setnames(subzones_colours_ref,c("BGC","Col"))
 
 plugins <- {list(vgplugin = 
          htmltools::htmlDependency(
@@ -64,13 +64,26 @@ jscode_feas <- paste0('window.LeafletWidget.methods.addGridTiles = function(BGC,
       var subzLayer = L.vectorGrid.protobuf(
         "', bcgov_tileserver, '",
         vectorTileOptions("bec_feas", "', bcgov_tilelayer, '", true,
-                          "tilePane", subzoneColors, "MAP_LABEL", "OBJECTID")
+                          "tilePane", subzoneColors, "MAP_LABEL", "MAP_LABEL")
       )
-      
+      console.log(subzLayer);
       this.layerManager.addLayer(subzLayer, "tile", "bec_feas", "Feasibility")
+      
       subzLayer.on("click", function(e){
+        console.log(e.layer);
         Shiny.setInputValue("bgc_click",e.layer.properties.MAP_LABEL);
+        var properties = e.layer.properties
+  			  highlight = properties.MAP_LABEL
+  			  var style = {
+            weight: 1,
+            color: "#fc036f",
+            fillColor: subzoneColors[properties.MAP_LABEL],
+            fillOpacity: 1,
+            fill: true
+          }
+          subzLayer.setFeatureStyle(properties.MAP_LABEL, style);
       });
+      
       
       var highlight
 		  var clearHighlight = function() {
@@ -80,20 +93,6 @@ jscode_feas <- paste0('window.LeafletWidget.methods.addGridTiles = function(BGC,
 		  	highlight = null;
 		  }
 		  
-		  subzLayer.on("click", function(e) {
-        if (e.layer.properties) {
-          var properties = e.layer.properties
-  			  highlight = properties.OBJECTID
-  			  var style = {
-            weight: 1,
-            color: "#fc036f",
-            fillColor: subzoneColors[properties.MAP_LABEL],
-            fillOpacity: 1,
-            fill: true
-          }
-          subzLayer.setFeatureStyle(properties.OBJECTID, style);
-        }
-      })
       subzLayer.on("mouseout", function(e) {
         clearHighlight();
       })
@@ -110,12 +109,6 @@ leafletjs_feas <-  tags$head(
     jscode_feas
   ))
 )
-
-# addVectorGridTilesDev <- function(map) {
-#   map <- registerPlugin(map, plugins$vgplugin)
-#   map <- registerPlugin(map, plugins$sliderplugin)
-#   map
-# }
 
 addBGCTiles <- function(map) {
   map <- registerPlugin(map, plugins$vgplugin)
@@ -152,7 +145,7 @@ addBGCTiles <- function(map) {
       var subzLayer = L.vectorGrid.protobuf(
         "', bcgov_tileserver, '",
         vectorTileOptions("bec_map", "', bcgov_tilelayer, '", false,
-                          "tilePane", subzoneColors, "MAP_LABEL", "OBJECTID")
+                          "tilePane", subzoneColors, "MAP_LABEL", "MAP_LABEL")
       )
       this.layerManager.addLayer(subzLayer, "tile", "bec_map", "BGCs");
       
