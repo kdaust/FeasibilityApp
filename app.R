@@ -126,6 +126,7 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                                                            choices = sppList,
                                                            selected = "Fd"),                                         
                                                h3("Map Display"),
+                                               checkboxInput("updatedfeas","Show Updated Range and Feasibility",value = F, width = "250px"),
                                                awesomeRadio("type",
                                                             label = "Range",
                                                             choices = c("Range","Climatic Suitability"),
@@ -133,7 +134,6 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                                                h4("or Edatopic Feasibility: \n"),
                                                girafeOutput("edaplot"),
                                                
-                                               checkboxInput("updatedfeas","Show Updated Feasibility",value = F, width = "150px"),## move to be by feasibility table info
                                                
                                                h3("Show Tree Species Locations"),
                                                checkboxInput("showtrees",label = "Show Plots", value = F, width = "150px"),
@@ -141,7 +141,7 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                                                
                                                ###change these to checkbox for each
                                                radioButtons("wnaORbc",
-                                                            label = "Show Ecosystem and Inventory Plots",
+                                                            label = "Show ecosystem and inventory Plots",
                                                             choices = c("BC","WNA"),
                                                             inline = T,
                                                             selected = "BC"),
