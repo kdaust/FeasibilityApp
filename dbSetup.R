@@ -96,3 +96,29 @@ allDatSf <- st_as_sf(allDat, coords = c("Longitude","Latitude"),crs = 4326)
 colnames(allDatSf)[1:4] <- c("sppsplit","plotnum","region","spp")  
 st_write(allDatSf,con,"plotdata")
 
+##Offsite
+dat <- readRDS("offsite_Locations.rds")
+datSf <- st_as_sf(dat,coords = c("X","Y"), crs = 3005)
+datSf <- datSf[,c("OPENING_ID","Species","NUMBER_PLANTED","SEEDLOT_NUMBER", "ATU_COMPLETION_DATE")]
+colnames(datSf)[1:5] <- c("plotid","spp","numplanted","seedlot", "planted")
+datSf <- st_transform(datSf,4326)
+datSf$planted <- as.Date(datSf$planted)
+datSf$project_id <- "RESULTS"
+
+dat2 <- fread("./Trials/AMAT seedlots X sites_1.csv")
+dat2 <- dat2[,.(SLnum, Sitename,Sp,Year,Lat_S,Long_S)]
+metaDat <- fread("./Trials/AMAT_Seedlot.csv")
+metaDat <- metaDat[,.(SLnum,Sp,Seedlot_Num)]
+dat2[metaDat, Seedlot := i.Seedlot_Num, on = c("SLnum","Sp")]
+dat2[,SLnum := NULL]
+dat2Sf <- st_as_sf(dat2,coords = c("Long_S","Lat_S"), crs = 4326)
+colnames(dat2Sf)[1:4] <- c("plotid","spp","planted","seedlot")
+dat2Sf$planted <- as.Date(paste0(dat2Sf$planted,"-01-01"))
+dat2Sf$numplanted <- NA
+dat2Sf$project_id <- "AMAT"
+datAll <- rbind(datSf,dat2Sf)
+dbExecute(con,"drop table offsite")
+st_write(datAll,dsn = con, "offsite")
+dbExecute(con,"create index on offsite(spp)")
+dbExecute(con,"create index on offsite(project_id,spp,planted)")
+d2 <- st_read(con, query = "select * from offsite where spp = 'Lw'")

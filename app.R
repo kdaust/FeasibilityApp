@@ -14,6 +14,7 @@ library(RPostgreSQL)
 library(shinyjs)
 library(leafgl)
 library(leaflet)
+library(colourvalues)
 source("FeasAppSource.R")
 ##connect to database
 ###Read in climate summary data
@@ -21,39 +22,46 @@ drv <- dbDriver("PostgreSQL")
 sapply(dbListConnections(drv), dbDisconnect)
 con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "68.183.199.104", 
                  port = 5432, dbname = "spp_feas")
-#con <- dbConnect(drv, user = "postgres", password = "Kiriliny41", host = "smithersresearch.ca", port = 5432, dbname = "feasibility_update") ## server use
-
 
 ##data for edatopic grid
 grd1x <- seq(1.5,4.5,1)
 grd1y <- seq(1.5,7.5,1)
-rects <- data.table(xmin = rep(c(0.5,3.5), each = 5),
-                    xmax = rep(c(3.5,5.5), each = 5),
-                    ymin = rep(c(0.5,1.5,3.5,5.5,7.5),2),
-                    ymax = rep(c(1.5,3.5,5.5,7.5,8.5),2))
-ids <- 1:10
-labs <- c("SHD-P","SHG/HG-P","SM/M-P","SX/X-P","VX-P","SHD-R","SHG/HG-R","SM/M-R","SX/X-R","VX-R")
+rects <- data.table(xmin = rep(c(0.5,2.5,3.5), each = 5),
+                    xmax = rep(c(2.5,3.5,5.5), each = 5),
+                    ymin = rep(c(0.5,1.5,3.5,5.5,7.5),3),
+                    ymax = rep(c(1.5,3.5,5.5,7.5,8.5),3))
+ids <- 1:15
 idDat <- expand.grid(SMR = 0:7, SNR = c("A","B","C","D","E"))
 idDat <- as.data.table(idDat)
 setorder(idDat,SMR,SNR)
-idDat[,ID := c(5,5,5,10,10,4,4,4,9,9,4,4,4,9,9,3,3,3,8,8,3,3,3,8,8,2,2,2,7,7,2,2,2,7,7,1,1,1,6,6)]
+idDat[,ID := c(5,5,10,15,15,4,4,9,14,14,4,4,9,14,14,3,3,8,13,13,3,3,8,13,13,2,2,7,12,12,2,2,7,12,12,1,1,6,11,11)]
 idDat[,edatopic := paste0(SNR,SMR)]
-edaMaxCol <- "#00fa00ff"
-edaMinCol <- "#fa0000ff"
-grRamp <- colorRamp(c(edaMaxCol,edaMinCol),alpha = T) ##colour ramp for gray values
+edaMaxCol <- "#440154FF"
+edaMinCol <- "#FDE725FF"
+plotCols <- data.frame(region = c("PlotData","RESULTS","AMAT"), 
+                        Col = c("#2DB000","#002DB0","#B0002D"))
+
+#grRamp <- colorRamp(c(edaMaxCol,edaMinCol),alpha = T) ##colour ramp for gray values
 grRamp2 <- colorRamp(c("#443e3dFF","#c0c0c0ff"),alpha = T) ##colour ramp for gray values
 
 ##setup species picker
-treelist <- fread("./inputs/Tree_List_2020.csv")
-treelist <- treelist[Bad != "x",.(TreeCode,Group)]
-treelist <- rbind(treelist,data.table(TreeCode = "None",Group = "Conifer_BC"))
+treelist <- fread("./inputs/Tree_List_2021.csv")
+treelist <- treelist[NotUse != "x",.(TreeCode,EnglishName, Group)]
+treelist[,TreeCode := paste0(TreeCode," - ", EnglishName)]
+#treelist <- rbind(treelist,data.table(TreeCode = "None",Group = "Conifer_BC"))
 sppList <- list()
 for(nm in c("Conifer_BC","Broadleaf_BC","Conifer_Native","Broadleaf_Native")){
     temp <- treelist[Group == nm, TreeCode]
     sppList[[nm]] <- temp
 }
-allSppNames <- dbGetQuery(con,"select distinct sppsplit from feasorig")[,1]
+allSppNames <- unlist(sppList)
+allSppNames <- substr(allSppNames,1,2)
+allSppNames <- unname(allSppNames)
 
+minStart <- dbGetQuery(con,"select min(planted) from offsite")[1,1]
+maxStart <- dbGetQuery(con,"select max(planted) from offsite")[1,1]
+
+offsiteNames <- dbGetQuery(con,"select distinct plotid from offsite")[,1]
 ##max suitability colours
 ##BGC colours
 
@@ -70,20 +78,18 @@ wetOpt <- data.table(feasible = c(1,2,3), Col = c("#c24f00ff","#cd804bff","#fbbd
 splitOpt <- "#df00a9ff"
 dryOpt <- data.table(feasible = c(1,2,3), Col = c("#000aa3ff","#565edeff","#8b8fdbff"))
 
-# ##legends
-# climaticLeg <- list(
-#     labels = c("Climatic Optimum","Wet Site Optimum","Dry Site Optimum","Bimodal Feasibility","Off-site Addition","Removed from CFRG"),
-#     colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff"),
-#     title = "Climatic Feasibility"
-# )
-# 
-# edaLeg <- list(
-#     labels = c("Poor Feasibility","Good Feasibility"),
-#     colours = c(edaMinCol,edaMaxCol),
-#     title = "Edatopic Feasibility"
-# )
+##legends
+climaticLeg <- list(
+    labels = c("Climatic Optimum","Wet Site Optimum","Dry Site Optimum","Bimodal Feasibility","Off-site Addition","Removed from CFRG"),
+    colours = c(zonalOpt, wetOpt$Col[1], dryOpt$Col[1],splitOpt,"#fbff00ff","#8300ffff"),
+    title = "Climatic Feasibility"
+)
 
-#set_token("pk.eyJ1Ijoia2lyaWRhdXN0IiwiYSI6ImNraDJjOTNxNzBucm0ycWxxbTlrOHY5OTEifQ.GybbrNS0kJ3VZ_lGCpXwMA")
+edaLeg <- list(
+    labels = c("Poor Feasibility","Good Feasibility"),
+    colours = c(edaMinCol,edaMaxCol),
+    title = "Edatopic Feasibility"
+)
 
 instr <- tagList(
     p("To use this tool:"),
@@ -111,34 +117,50 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                           useShinyjs(),
                           fluidPage(
                                   column(3,
-                                         h3("Spatial Maps of Tree Feasibility Ratings by BGC"),
+                                         h3("BGC Tree Feasibility Tool"),
                                          actionButton("showinstr","Click To Show Instructions"),
-                                         h4("Select A Tree Species"),
-                                         pickerInput("sppPick",
-                                                     label = "",
-                                                     choices = sppList,
-                                                     selected = "Ba"),                                         
-                                         h4("Summary type"),
-                                         awesomeRadio("type",
-                                                      label = "Select Summary by Subzone",
-                                                      choices = c("Presence/Absence","Climatic Suitability"),
-                                                      selected =  "Presence/Absence"),
-                                         h4("Or Select Edatopic Space: \n"),
-                                         girafeOutput("edaplot"),                                         
-                                         h3("Options"),
-                                         awesomeRadio("wnaORbc",
-                                                      label = "Select BC or all of WNA",
-                                                      choices = c("BC","WNA"),
-                                                      inline = T,
-                                                      selected = "BC"),
-                                         switchInput("updatedfeas","Updated Feas",value = F, labelWidth = "100px"),
-                                         switchInput("showtrees",label = "Show Plots", value = F, labelWidth = "100px")
-                                         
+                                         panel(style = "overflow-y:scroll; max-height: 800px; position:relative; align: centre",
+                                               h3("Species Selection"),
+                                               pickerInput("sppPick",
+                                                           label = "Select A Tree Species",
+                                                           choices = sppList,
+                                                           selected = "Ba"),                                         
+                                               h3("Map Summary Type"),
+                                               awesomeRadio("type",
+                                                            label = "Select Summary by Subzone",
+                                                            choices = c("Presence/Absence","Climatic Suitability"),
+                                                            selected =  "Presence/Absence"),
+                                               h4("Or Select Edatopic Space: \n"),
+                                               girafeOutput("edaplot"),
+                                               checkboxInput("updatedfeas","Show Updated Feasibility",value = F, width = "150px"),
+                                               h3("Plot Data Options"),
+                                               radioButtons("wnaORbc",
+                                                            label = "Show BC or WNA plots",
+                                                            choices = c("BC","WNA"),
+                                                            inline = T,
+                                                            selected = "BC"),
+                                               checkboxInput("showtrees",label = "Show Plots", value = F, width = "150px"),
+                                               checkboxGroupInput("trials","Select offsite trials",c("AMAT","RESULTS")),
+                                               dateRangeInput("trialStart","Filter offsite trials by planting date:",
+                                                              start = minStart, end = maxStart, format = "yyyy", startview = "year"),
+                                               
+                                               h3("Add trial assessment"),
+                                               selectInput("trialSelect",
+                                                           label = "Select a trial, or click on map",
+                                                           choices = NULL),
+                                               h4("Update assessment in table below:"),
+                                               rHandsontableOutput("assIn"),
+                                               textInput("assessMod",label = "Enter your initials:"),
+                                               actionButton("submitAss","Submit Assessment")
+                                         )
+
                                   ),
                                   column(9,
                                          useShinyjs(),
                                          leafletjs_feas,
-                                        leafglOutput("map", height = "700px"),
+                                         selectInput("selectBGC","Select subzone or click on map below", 
+                                                     choices = c("None",sort(subzones_colours_ref$BGC)), multiple = F,selected = "None"),
+                                         leafglOutput("map", height = "700px"),
                                          br(),
                                          h3("Suitability data for selected polygon:"),
                                          p("Edit the feasibility values here. When you click submit, 
@@ -150,7 +172,9 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                                              rHandsontableOutput("hot"),
                                              br(),
                                              hidden(actionBttn("submitdat", label = "Submit Changes!")),
-                                             hidden(actionBttn("addspp","Add Species"))
+                                             hidden(actionBttn("addspp","Add Species")),
+                                             h4("Download feasibility data and updates:"),
+                                             downloadButton("downloadFeas")
                                          )
                                   )
                               
@@ -160,10 +184,11 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                  )
 
 
-server <- function(input, output) {
+server <- function(input, output, session) {
     globalFeas <- reactiveValues(dat = "feasible")
-    globalLocation <- reactiveValues(loc = c(-124.72,54.56), zoom = 4.5)
-    #globalLeg <- reactiveValues(Legend = climaticLeg)
+    globalLocation <- reactiveValues(loc = c(-124.72,54.56), zoom = 4)
+    globalLeg <- reactiveValues(Legend = climaticLeg)
+    globalSelBEC <- reactiveVal()
     
     observeEvent(input$showinstr,{
         shinyalert(title = "Instructions",html = T,text = instr)
@@ -184,16 +209,6 @@ server <- function(input, output) {
         toggle(id = "submitdat", condition = input$type != "Climatic Suitability")
     })
     
-    observeEvent(input$wnaORbc,{
-        if(input$wnaORbc == "WNA"){
-            globalLocation$loc = c(-116.97,49)
-            globalLocation$zoom = 3.5
-        }else{
-            globalLocation$loc = c(-124.72,54.56)
-            globalLocation$zoom = 4.5
-        }
-    }, priority = 50)
-    
     ##this is the column name in the database
     observeEvent(input$updatedfeas,{
         print("Updating feasibility")
@@ -204,6 +219,16 @@ server <- function(input, output) {
         }
         
     }, priority = 20)
+    
+    output$downloadFeas <- downloadHandler(
+        filename = "FeasibilityUpdates.csv",
+        content = function(file){
+            dat <- dbGetQuery(con,"SELECT bgc,ss_nospace,sppsplit,feasible,newfeas,mod FROM feasorig")
+            dat <- as.data.table(dat)
+            setnames(dat, old = "sppsplit",new = "spp")
+            fwrite(dat, file)
+        }
+    )
     
     ##base BGC map -- done
     output$map <- renderLeaflet({
@@ -218,37 +243,83 @@ server <- function(input, output) {
                 position = "topright")
     })
     
-    # observeEvent({c(input$bgcLayer,input$wnaORbc)},{
-    #     if(!input$bgcLayer){
-    #         print("removing bgc")
-    #         leafletProxy("map") %>%
-    #             hideGroup("BGCs")
-    #     }else{
-    #         leafletProxy("map") %>%
-    #             showGroup("BGCs")
-    #     }
-    # }, priority = 23)
-    # 
+    observeEvent(input$trialSelect,{
+        output$assIn <- renderRHandsontable({
+            if(input$trialSelect != ""){
+                dat <- dbGetQuery(con,paste0("select plotid,spp,numplanted,seedlot,assessment from offsite where plotid = '",
+                                             input$trialSelect,"'"))
+                dat <- unique(as.data.table(dat))
+                rhandsontable(dat) %>%
+                    hot_col(col = "assessment",type = "dropdown",source = c("Fail","Poor","Fair","Good","Excellent","Oink"))
+            }
+        })
+    })
+    
+    observeEvent(input$submitAss,{
+        dat <- as.data.table(hot_to_r(input$assIn))
+        dat[,mod := input$assessMod]
+        dbWriteTable(con, "temp_ass_update", dat, overwrite = T)
+        dbExecute(con,"UPDATE offsite
+                  SET assessment = temp_ass_update.assessment,
+                  mod = temp_ass_update.mod
+                  FROM temp_ass_update
+                  WHERE offsite.plotid = temp_ass_update.plotid
+                  AND offsite.spp = temp_ass_update.spp
+                  AND offsite.seedlot = temp_ass_update.seedlot")
+        shinyalert("Thank you!","Your updates have been recorded", type = "info", inputId = "assMessage")
+    })
+    
+    observeEvent(input$map_glify_click,{
+        val <- input$map_glify_click$data
+        pattern <- "Name:\\s*(.*?)\\s*<br>"
+        nme <- regmatches(val,regexec(pattern,val))[[1]][2]
+        updateSelectInput(session,"trialSelect",selected = nme)
+    })
+    
     observeEvent({c(input$showtrees,
                     input$sppPick,
-                    input$wnaORbc)},{
-        if(input$showtrees){
-            sppName <- substr(input$sppPick,1,2)
-            if(input$wnaORbc == "BC"){
-                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"' and region = 'BC'")
-            }else{
-                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"'")
-            }
-
-            dat <- st_read(con,query = QRY)
-            if(nrow(dat) > 1){
-                leafletProxy("map") %>%
-                    addGlPoints(data = dat,layerId = "tree_points",popup = ~ plotnum)
-            }
-        }else{
-            leafletProxy("map") %>%
-                removeGlPoints("tree_points")
-        }
+                    input$wnaORbc,
+                    input$trials,
+                    input$trialStart)},{
+                        sppName <- substr(input$sppPick,1,2)
+                        if(input$showtrees){
+                            if(input$wnaORbc == "BC"){
+                                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"' and region = 'BC'")
+                            }else{
+                                QRY <- paste0("select spp,plotnum,geometry from plotdata where spp = '",sppName,"'")
+                            }
+                            dat <- st_read(con,query = QRY)
+                            dat <- dat["plotnum"]
+                            colnames(dat)[1] <- "label"
+                            dat$region <- "PlotData"
+                        }else{
+                            dat <- NULL
+                        }
+                        if(!is.null(input$trials)){
+                            dat2 <- st_read(con,query = paste0("select project_id, plotid, spp, seedlot, geometry from offsite where spp like '",
+                                                       sppName,"%' and project_id in ('",paste(input$trials,collapse = "','"),
+                                                       "') and planted > '", input$trialStart[1],"' and planted < '",input$trialStart[2],"'"))
+                            if(nrow(dat2) == 0){
+                                dat2 <- NULL
+                            }else{
+                                dat2$label <- paste0("Name: ",dat2$plotid,"<br>Seedlot: ",dat2$seedlot)
+                                updateSelectInput(session,"trialSelect",choices = unique(dat2$plotid))
+                                dat2 <- dat2[,c("project_id","label")]
+                                colnames(dat2)[1] <- "region"
+                            }
+                        }else{
+                            dat2 <- NULL
+                        }
+                        datAll <- rbind(dat,dat2)
+                        if(!is.null(datAll)){
+                            datAll <- merge(datAll, plotCols, by = "region")
+                            datAll$Col <- as.character(datAll$Col)
+                            leafletProxy("map") %>%
+                                addGlPoints(data = datAll,layerId = "tree_plot",popup = ~ label,fillColor = datAll$Col)
+                        }else{
+                            leafletProxy("map") %>%
+                                removeGlPoints("tree_plot")
+                        }
     })
     
     ##Prepare BGC colour table for non-edatopic
@@ -278,17 +349,18 @@ server <- function(input, output) {
         feasMax <- feas[,.(SuitMax = min(feasible)), by = .(bgc,sppsplit)]
         if(input$type == "Presence/Absence"){
             if(length(unique(feasMax$sppsplit)) > 1){
+                browser()
                 feasMax[,SppNum := as.numeric(as.factor(sppsplit))]
                 tempCol <- grRamp2(rescale(feasMax$SppNum,to = c(0,0.6)))
                 feasMax[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
                 temp <- unique(feasMax[,.(sppsplit,Col)])
                 
-                # PALeg <- list(
-                #     labels = c(temp$sppsplit,"Added","Removed"),
-                #     colours = c(temp$Col,"#fbff00ff","#8300ffff"),
-                #     title = "Presence/Absence"
-                # )
-                # globalLeg$Legend <- PALeg
+                PALeg <- list(
+                    labels = c(temp$sppsplit,"Added","Removed"),
+                    colours = c(temp$Col,"#fbff00ff","#8300ffff"),
+                    title = "Presence/Absence"
+                )
+                globalLeg$Legend <- PALeg
                 
                 feasMax[SuitMax == 4,Col := "#fbff00ff"]
                 feasMax[SuitMax == 5,Col := "#8300ffff"]
@@ -296,19 +368,19 @@ server <- function(input, output) {
                 feasMax[,Col := "#443e3dFF"]
                 feasMax[SuitMax == 4,Col := "#fbff00ff"]
                 feasMax[SuitMax == 5,Col := "#8300ffff"]
-                # PALeg <- list(
-                #     labels = c(temp$sppsplit[1],"Added","Removed"),
-                #     colours = c("#443e3dFF","#fbff00ff","#8300ffff"),
-                #     title = "Presence/Absence"
-                # )
-                # globalLeg$Legend <- PALeg
+                PALeg <- list(
+                    labels = c(input$sppPick,"Added","Removed"),
+                    colours = c("#443e3dFF","#fbff00ff","#8300ffff"),
+                    title = "Presence/Absence"
+                )
+                globalLeg$Legend <- PALeg
             }
         }else if(input$type == "Max Suit"){
             feasMax[suitcols, Col := i.Col, on = c(SuitMax = "Suit")]
             #globalLeg$Legend <- maxSuitLeg
         }else{
             feasMax <- prepClimSuit()
-            #globalLeg$Legend <- climaticLeg
+            globalLeg$Legend <- climaticLeg
         }
         feasMax[,Lab := bgc]
         feasMax[,.(bgc,Col,Lab)]
@@ -322,22 +394,20 @@ server <- function(input, output) {
                       "' and ",globalFeas$dat," in (1,2,3,4)")
         feas <- as.data.table(dbGetQuery(con, QRY))
         setnames(feas, old = globalFeas$dat, new = "feasible")        
-        #globalLeg$Legend <- edaLeg
+        globalLeg$Legend <- edaLeg
         id <- as.numeric(input$edaplot_selected)
         idSub <- idDat[ID == id,.(ID,edatopic)]
         edaSub <- eda[idSub, on = "edatopic"]
         feasSub <- feas[ss_nospace %chin% edaSub$ss_nospace,]
         feasSub[,Lab := paste0(ss_nospace,": ", feasible)]
         feasSum <- feasSub[,.(FeasVal = mean(feasible), Lab = paste(Lab, collapse = "<br>")), by = bgc]
-        tempCol <- grRamp(rescale(feasSum$FeasVal,to = c(0,1)))
-        feasSum[,Col := rgb(tempCol[,1],tempCol[,2],tempCol[,3],tempCol[,4], maxColorValue = 255)]
+        #tempCol <- grRamp(rescale(feasSum$FeasVal,to = c(0,1)))
+        feasSum[,Col := colour_values(rescale(feasSum$FeasVal,to = c(0,1)))]
         feasSum[,.(bgc,Col,Lab)]
     })
     
     ###calculate climatic suitability colours
     prepClimSuit <- reactive({
-        # feas <- globalFeas$dat
-        # tempFeas <- feas[Spp == substr(input$sppPick,1,2) & Feasible %in% c(1,2,3),]
         QRY <- paste0("select bgc,ss_nospace,sppsplit,spp,",globalFeas$dat,
                       " from feasorig where spp = '",substr(input$sppPick,1,2),
                       "' and ",globalFeas$dat," in (1,2,3,4,5)")
@@ -388,9 +458,7 @@ server <- function(input, output) {
         }
         return(climSuit)
     })
-    
-    
-    
+
     observeEvent({c(
         input$sppPick,
         input$type,
@@ -412,16 +480,30 @@ server <- function(input, output) {
     dat[is.na(Lab),Lab := bgc]
     if(!is.null(dat)){
         leafletProxy("map") %>%
-            invokeMethod(data = dat, method = "addGridTiles", dat$bgc, dat$Col,dat$Lab)
+            invokeMethod(data = dat, method = "addGridTiles", dat$bgc, dat$Col,dat$Lab) %>%
+            addLegend(position = "bottomright",
+                      labels = globalLeg$Legend$labels,
+                      colors = globalLeg$Legend$colours,
+                      title = globalLeg$Legend$title,
+                      layerId = "bec_feas")
     }else{
         leafletProxy("map") %>%
             removeShape(layer_id = "BECMap")
     }
 
 }, priority = 15)
+    
+    observeEvent(input$selectBGC,{
+        if(input$selectBGC == "None"){
+            globalSelBEC(NULL)
+        }else{
+            globalSelBEC(input$selectBGC)
+        }
+        session$sendCustomMessage("highlightBEC",input$selectBGC)
+    })
 
     output$tableBGC <- renderUI({
-        unit <- input$bgc_click
+        unit <- globalSelBEC()
         if(!is.null(unit)){
             tagList(
                 h3(paste0("Feasibility for ",unit)),
@@ -432,13 +514,17 @@ server <- function(input, output) {
     
     ##prepare suitability table when polygon clicked
     prepTable <- reactive({
-        unit <- input$bgc_click
+        unit <- globalSelBEC()
         print(unit)
         idx_row <- NULL
         idx_col <- NULL
         QRY <- paste0("select bgc,ss_nospace,sppsplit,spp,",globalFeas$dat,
                       " from feasorig where bgc = '",unit,"' and ",globalFeas$dat," in (1,2,3,4)")
         feas <- as.data.table(dbGetQuery(con, QRY))
+        if(nrow(feas) == 0){
+            shinyalert("Oopsies!","There are no species in that subzone :(")
+            return(list(dat = feas, rIdx = NULL, cIdx = NULL, sppCol = NULL))
+        }
         setnames(feas, old = globalFeas$dat, new = "feasible")   
         if(is.null(input$edaplot_selected)){
             if(input$type == "Climatic Suitability"){
@@ -491,12 +577,18 @@ server <- function(input, output) {
         list(dat = tabOut, rIdx = idx_row, cIdx = idx_col, sppCol = sppIdx)
     })
     
+    observeEvent(input$bgc_click,{
+        #updateSelectInput(session, "selectBGC",selected = "None")
+        globalSelBEC(input$bgc_click)
+    })
+    
     ##render suitability table, colour updated cells
     observeEvent({c(input$bgc_click, 
                     input$edaplot_selected,
                     input$sppPick,
-                    input$updatedfeas)},{
-        if(!is.null(input$bgc_click)){
+                    input$updatedfeas,
+                    input$selectBGC)},{
+        if(!is.null(globalSelBEC())){
             output$hot <- renderRHandsontable({
                 temp <- prepTable()
                 dat <- temp$dat
@@ -557,8 +649,8 @@ server <- function(input, output) {
     }
     
     output$hot_add <- renderRHandsontable({
-        if(!is.null(input$bgc_click)){
-            unit <- input$bgc_click
+        if(!is.null(globalSelBEC())){
+            unit <- globalSelBEC()
             edaSub <- unique(eda[bgc == unit,.(bgc,ss_nospace)])
             temp <- data.table(ss_nospace = edaSub$ss_nospace, newfeas = NA_integer_)
             rhandsontable(data = temp)
@@ -604,7 +696,7 @@ server <- function(input, output) {
             scale_y_discrete(limits = c("7","6","5","4","3","2","1","0"))+
             scale_x_discrete(limits = c("A","B","C","D","E"))+
             geom_rect_interactive(data = rects, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, 
-                                                    tooltip = labs, data_id = ids), 
+                                                    data_id = ids), 
                                   fill = "grey", col = "purple")+
             geom_hline(aes(yintercept = grd1y), linetype = "dashed")+
             geom_vline(aes(xintercept = grd1x), linetype = "dashed")+

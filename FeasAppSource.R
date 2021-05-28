@@ -68,9 +68,11 @@ jscode_feas <- paste0('window.LeafletWidget.methods.addGridTiles = function(BGC,
       )
       console.log(subzLayer);
       this.layerManager.addLayer(subzLayer, "tile", "bec_feas", "Feasibility")
+      var selectHighlight = "SBSdk";
       
       subzLayer.on("click", function(e){
         console.log(e.layer);
+        subzLayer.resetFeatureStyle(selectHighlight);
         Shiny.setInputValue("bgc_click",e.layer.properties.MAP_LABEL);
         var properties = e.layer.properties
   			  highlight = properties.MAP_LABEL
@@ -101,8 +103,27 @@ jscode_feas <- paste0('window.LeafletWidget.methods.addGridTiles = function(BGC,
         return tooltipLabs[e.properties.MAP_LABEL]
       }, {sticky: true, textsize: "10px", opacity: 1});
       subzLayer.bringToFront();
-    }'
-)
+      
+      var styleHL = {
+            weight: 1.5,
+            color: "#fc036f",
+            fillColor: "#FFFB00",
+            fillOpacity: 1,
+            fill: true
+          };
+          
+      
+      Shiny.addCustomMessageHandler("highlightBEC",function(BECSelect){
+        console.log(BECSelect);
+        if(selectHighlight){
+          subzLayer.resetFeatureStyle(selectHighlight);
+          selectHighlight = BECSelect;
+          subzLayer.setFeatureStyle(BECSelect, styleHL);
+        }
+        
+      });
+      
+    };')
 
 leafletjs_feas <-  tags$head(
   tags$script(HTML(
