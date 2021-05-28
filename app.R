@@ -354,7 +354,7 @@ server <- function(input, output, session) {
         feas <- as.data.table(d1)
         setnames(feas, old = globalFeas$dat, new = "feasible")
         feasMax <- feas[,.(SuitMax = min(feasible)), by = .(bgc,sppsplit)]
-        if(input$type == "Presence/Absence"){
+        if(input$type == "Range"){
             if(length(unique(feasMax$sppsplit)) > 1){
                 browser()
                 feasMax[,SppNum := as.numeric(as.factor(sppsplit))]
