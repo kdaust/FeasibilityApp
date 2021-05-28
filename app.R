@@ -94,8 +94,8 @@ edaLeg <- list(
 instr <- tagList(
     p("To use this tool:"),
     tags$ol(
-        tags$li("Select a species code to view its feasibility on the map."),
-        tags$li("Select type of map: A) Presence/Absence, B) Climatic Suitability. C) Suitability in select edatopic space 
+        tags$li("Select a species code to view its range and feasibility rating on the map."),
+        tags$li("Select type of map: A) Presence/Absence, B) Climatic Suitability. C) Environmental suitability in select edatopic space 
                 (click again to return to summarised view)."),
         tags$li("Click on a BGC polygon to display feasibility ratings in table format")),
     tags$hr(),
@@ -117,34 +117,41 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                           useShinyjs(),
                           fluidPage(
                                   column(3,
-                                         h3("BGC Tree Feasibility Tool"),
+                                         h3("Tree Range and Feasibility by BGC"),
                                          actionButton("showinstr","Click To Show Instructions"),
                                          panel(style = "overflow-y:scroll; max-height: 800px; position:relative; align: centre",
-                                               h3("Species Selection"),
+                                               h3("Select A Tree Species"),
                                                pickerInput("sppPick",
-                                                           label = "Select A Tree Species",
+                                                           label = "",
                                                            choices = sppList,
-                                                           selected = "Ba"),                                         
-                                               h3("Map Summary Type"),
+                                                           selected = "Fd"),                                         
+                                               h3("Map Display"),
                                                awesomeRadio("type",
-                                                            label = "Select Summary by Subzone",
-                                                            choices = c("Presence/Absence","Climatic Suitability"),
-                                                            selected =  "Presence/Absence"),
-                                               h4("Or Select Edatopic Space: \n"),
+                                                            label = "Range",
+                                                            choices = c("Range","Climatic Suitability"),
+                                                            selected =  "Range"),
+                                               h4("or Edatopic Feasibility: \n"),
                                                girafeOutput("edaplot"),
-                                               checkboxInput("updatedfeas","Show Updated Feasibility",value = F, width = "150px"),
-                                               h3("Plot Data Options"),
+                                               
+                                               checkboxInput("updatedfeas","Show Updated Feasibility",value = F, width = "150px"),## move to be by feasibility table info
+                                               
+                                               h3("Show Tree Species Locations"),
+                                               checkboxInput("showtrees",label = "Show Plots", value = F, width = "150px"),
+                                                                                             
+                                               
+                                               ###change these to checkbox for each
                                                radioButtons("wnaORbc",
-                                                            label = "Show BC or WNA plots",
+                                                            label = "Show Ecosystem and Inventory Plots",
                                                             choices = c("BC","WNA"),
                                                             inline = T,
                                                             selected = "BC"),
-                                               checkboxInput("showtrees",label = "Show Plots", value = F, width = "150px"),
-                                               checkboxGroupInput("trials","Select offsite trials",c("AMAT","RESULTS")),
+
+                                               checkboxGroupInput("trials","Show location of offsite trials",c("AMAT","RESULTS")),
                                                dateRangeInput("trialStart","Filter offsite trials by planting date:",
                                                               start = minStart, end = maxStart, format = "yyyy", startview = "year"),
                                                
-                                               h3("Add trial assessment"),
+                                              ###Move these to a separate tab
+                                                h3("Add trial assessment"),
                                                selectInput("trialSelect",
                                                            label = "Select a trial, or click on map",
                                                            choices = NULL),
@@ -158,11 +165,11 @@ ui <- navbarPage("Species Feasibility",theme = "css/bcgov.css",
                                   column(9,
                                          useShinyjs(),
                                          leafletjs_feas,
-                                         selectInput("selectBGC","Select subzone or click on map below", 
+                                         selectInput("selectBGC","Find a BGC", 
                                                      choices = c("None",sort(subzones_colours_ref$BGC)), multiple = F,selected = "None"),
                                          leafglOutput("map", height = "700px"),
                                          br(),
-                                         h3("Suitability data for selected polygon:"),
+                                         h3("Tree Feasibility Ratings for selected BGC:"),
                                          p("Edit the feasibility values here. When you click submit, 
                                             the updated values will be sent to a database. If you are looking
                                            at updated values, they will be shown with a pink background on the table."),
@@ -195,7 +202,7 @@ server <- function(input, output, session) {
     })
     
     testCanAdd <- function(){
-        if(input$type == "Presence/Absence" & is.null(input$edaplot_selected)){
+        if(input$type == "Range" & is.null(input$edaplot_selected)){
             return(TRUE)
         }
         return(FALSE)
